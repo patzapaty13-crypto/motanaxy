@@ -20,8 +20,13 @@ Instead of fine-tuning a pre-existing multi-billion parameter model, I wanted to
 
 ---
 
-## 🎯 Project Goals (เป้าหมายของโปรเจกต์)
+## 🎯 Project Goals & The Ultimate Vision (เป้าหมายของโปรเจกต์)
 
+**The Ultimate Vision (วิสัยทัศน์สูงสุด):**  
+**[English]** The long-term dream isn't just to build a code generator. The ultimate goal is to evolve this project into an AI assistant like **J.A.R.V.I.S. from Iron Man**—a highly capable, autonomous, and logically reasoning entity that can understand context, execute complex tasks, and learn dynamically.  
+**[ภาษาไทย]** ความฝันระยะยาวของเราไม่ใช่แค่การสร้างตัวพิมพ์โค้ด แต่เป้าหมายสูงสุดคือการพัฒนาโปรเจกต์นี้ให้กลายเป็นผู้ช่วย AI อย่าง **J.A.R.V.I.S. ใน Iron Man** — AI ที่สามารถคิดวิเคราะห์ได้อย่างมีเหตุผล ทำงานที่ซับซ้อนได้เอง และเรียนรู้ได้อย่างต่อเนื่อง
+
+**Milestone Goals:**
 **[English]**
 1. **Zero Pre-training:** Prove that a small model (~10M parameters) can learn Python syntax and simple algorithmic logic entirely from scratch.
 2. **Local & Cloud Capable:** Build training scripts that can run on a local CPU or seamlessly transition to free cloud GPUs (like Kaggle or Colab) via `auto_evolve.py`.
