@@ -1,0 +1,3516 @@
+# Python: Sorting algorithms
+def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        swapped = False
+        for j in range(0, n - i - 1):
+            if arr[j] > arr[j + 1]:
+                arr[j], arr[j + 1] = arr[j + 1], arr[j]
+                swapped = True
+        if not swapped:
+            break
+    return arr
+
+
+def quick_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+    return quick_sort(left) + middle + quick_sort(right)
+
+
+def merge_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    mid = len(arr) // 2
+    left = merge_sort(arr[:mid])
+    right = merge_sort(arr[mid:])
+    return merge(left, right)
+
+
+def merge(left, right):
+    result = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:
+            result.append(left[i])
+            i += 1
+        else:
+            result.append(right[j])
+            j += 1
+    result.extend(left[i:])
+    result.extend(right[j:])
+    return result
+
+
+def insertion_sort(arr):
+    for i in range(1, len(arr)):
+        key = arr[i]
+        j = i - 1
+        while j >= 0 and arr[j] > key:
+            arr[j + 1] = arr[j]
+            j -= 1
+        arr[j + 1] = key
+    return arr
+
+
+def selection_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        min_idx = i
+        for j in range(i + 1, n):
+            if arr[j] < arr[min_idx]:
+                min_idx = j
+        arr[i], arr[min_idx] = arr[min_idx], arr[i]
+    return arr
+
+
+def heap_sort(arr):
+    def heapify(arr, n, i):
+        largest = i
+        left = 2 * i + 1
+        right = 2 * i + 2
+        if left < n and arr[left] > arr[largest]:
+            largest = left
+        if right < n and arr[right] > arr[largest]:
+            largest = right
+        if largest != i:
+            arr[i], arr[largest] = arr[largest], arr[i]
+            heapify(arr, n, largest)
+
+    n = len(arr)
+    for i in range(n // 2 - 1, -1, -1):
+        heapify(arr, n, i)
+    for i in range(n - 1, 0, -1):
+        arr[0], arr[i] = arr[i], arr[0]
+        heapify(arr, i, 0)
+    return arr
+
+
+def counting_sort(arr):
+    if not arr:
+        return arr
+    max_val = max(arr)
+    min_val = min(arr)
+    range_val = max_val - min_val + 1
+    count = [0] * range_val
+    output = [0] * len(arr)
+    for num in arr:
+        count[num - min_val] += 1
+    for i in range(1, range_val):
+        count[i] += count[i - 1]
+    for num in reversed(arr):
+        output[count[num - min_val] - 1] = num
+        count[num - min_val] -= 1
+    return output
+
+
+# Python: Search algorithms
+def binary_search(arr, target):
+    left, right = 0, len(arr) - 1
+    while left <= right:
+        mid = (left + right) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1
+
+
+def linear_search(arr, target):
+    for i, val in enumerate(arr):
+        if val == target:
+            return i
+    return -1
+
+
+def binary_search_recursive(arr, target, left, right):
+    if left > right:
+        return -1
+    mid = (left + right) // 2
+    if arr[mid] == target:
+        return mid
+    elif arr[mid] < target:
+        return binary_search_recursive(arr, target, mid + 1, right)
+    else:
+        return binary_search_recursive(arr, target, left, mid - 1)
+
+
+# Python: Data Structures
+class Stack:
+    def __init__(self):
+        self.items = []
+
+    def push(self, item):
+        self.items.append(item)
+
+    def pop(self):
+        if self.is_empty():
+            raise IndexError("Stack is empty")
+        return self.items.pop()
+
+    def peek(self):
+        if self.is_empty():
+            raise IndexError("Stack is empty")
+        return self.items[-1]
+
+    def is_empty(self):
+        return len(self.items) == 0
+
+    def size(self):
+        return len(self.items)
+
+
+class Queue:
+    def __init__(self):
+        self.items = []
+
+    def enqueue(self, item):
+        self.items.append(item)
+
+    def dequeue(self):
+        if self.is_empty():
+            raise IndexError("Queue is empty")
+        return self.items.pop(0)
+
+    def front(self):
+        if self.is_empty():
+            raise IndexError("Queue is empty")
+        return self.items[0]
+
+    def is_empty(self):
+        return len(self.items) == 0
+
+    def size(self):
+        return len(self.items)
+
+
+class LinkedListNode:
+    def __init__(self, value):
+        self.value = value
+        self.next = None
+
+
+class LinkedList:
+    def __init__(self):
+        self.head = None
+        self.length = 0
+
+    def append(self, value):
+        node = LinkedListNode(value)
+        if not self.head:
+            self.head = node
+        else:
+            current = self.head
+            while current.next:
+                current = current.next
+            current.next = node
+        self.length += 1
+
+    def prepend(self, value):
+        node = LinkedListNode(value)
+        node.next = self.head
+        self.head = node
+        self.length += 1
+
+    def delete(self, value):
+        if not self.head:
+            return
+        if self.head.value == value:
+            self.head = self.head.next
+            self.length -= 1
+            return
+        current = self.head
+        while current.next:
+            if current.next.value == value:
+                current.next = current.next.next
+                self.length -= 1
+                return
+            current = current.next
+
+    def find(self, value):
+        current = self.head
+        while current:
+            if current.value == value:
+                return current
+            current = current.next
+        return None
+
+    def to_list(self):
+        result = []
+        current = self.head
+        while current:
+            result.append(current.value)
+            current = current.next
+        return result
+
+
+class BinaryTreeNode:
+    def __init__(self, value):
+        self.value = value
+        self.left = None
+        self.right = None
+
+
+class BinarySearchTree:
+    def __init__(self):
+        self.root = None
+
+    def insert(self, value):
+        if not self.root:
+            self.root = BinaryTreeNode(value)
+            return
+        self._insert_recursive(self.root, value)
+
+    def _insert_recursive(self, node, value):
+        if value < node.value:
+            if node.left is None:
+                node.left = BinaryTreeNode(value)
+            else:
+                self._insert_recursive(node.left, value)
+        else:
+            if node.right is None:
+                node.right = BinaryTreeNode(value)
+            else:
+                self._insert_recursive(node.right, value)
+
+    def search(self, value):
+        return self._search_recursive(self.root, value)
+
+    def _search_recursive(self, node, value):
+        if node is None or node.value == value:
+            return node
+        if value < node.value:
+            return self._search_recursive(node.left, value)
+        return self._search_recursive(node.right, value)
+
+    def inorder(self):
+        result = []
+        self._inorder_recursive(self.root, result)
+        return result
+
+    def _inorder_recursive(self, node, result):
+        if node:
+            self._inorder_recursive(node.left, result)
+            result.append(node.value)
+            self._inorder_recursive(node.right, result)
+
+    def preorder(self):
+        result = []
+        self._preorder_recursive(self.root, result)
+        return result
+
+    def _preorder_recursive(self, node, result):
+        if node:
+            result.append(node.value)
+            self._preorder_recursive(node.left, result)
+            self._preorder_recursive(node.right, result)
+
+    def postorder(self):
+        result = []
+        self._postorder_recursive(self.root, result)
+        return result
+
+    def _postorder_recursive(self, node, result):
+        if node:
+            self._postorder_recursive(node.left, result)
+            self._postorder_recursive(node.right, result)
+            result.append(node.value)
+
+
+class HashTable:
+    def __init__(self, size=64):
+        self.size = size
+        self.table = [[] for _ in range(size)]
+
+    def _hash(self, key):
+        return hash(key) % self.size
+
+    def set(self, key, value):
+        index = self._hash(key)
+        for pair in self.table[index]:
+            if pair[0] == key:
+                pair[1] = value
+                return
+        self.table[index].append([key, value])
+
+    def get(self, key):
+        index = self._hash(key)
+        for pair in self.table[index]:
+            if pair[0] == key:
+                return pair[1]
+        raise KeyError(key)
+
+    def delete(self, key):
+        index = self._hash(key)
+        for i, pair in enumerate(self.table[index]):
+            if pair[0] == key:
+                del self.table[index][i]
+                return
+        raise KeyError(key)
+
+    def keys(self):
+        result = []
+        for bucket in self.table:
+            for pair in bucket:
+                result.append(pair[0])
+        return result
+
+
+class MinHeap:
+    def __init__(self):
+        self.heap = []
+
+    def parent(self, i):
+        return (i - 1) // 2
+
+    def left_child(self, i):
+        return 2 * i + 1
+
+    def right_child(self, i):
+        return 2 * i + 2
+
+    def insert(self, value):
+        self.heap.append(value)
+        self._sift_up(len(self.heap) - 1)
+
+    def extract_min(self):
+        if not self.heap:
+            raise IndexError("Heap is empty")
+        if len(self.heap) == 1:
+            return self.heap.pop()
+        min_val = self.heap[0]
+        self.heap[0] = self.heap.pop()
+        self._sift_down(0)
+        return min_val
+
+    def _sift_up(self, i):
+        while i > 0 and self.heap[self.parent(i)] > self.heap[i]:
+            self.heap[i], self.heap[self.parent(i)] = self.heap[self.parent(i)], self.heap[i]
+            i = self.parent(i)
+
+    def _sift_down(self, i):
+        smallest = i
+        left = self.left_child(i)
+        right = self.right_child(i)
+        if left < len(self.heap) and self.heap[left] < self.heap[smallest]:
+            smallest = left
+        if right < len(self.heap) and self.heap[right] < self.heap[smallest]:
+            smallest = right
+        if smallest != i:
+            self.heap[i], self.heap[smallest] = self.heap[smallest], self.heap[i]
+            self._sift_down(smallest)
+
+
+# Python: Graph algorithms
+class Graph:
+    def __init__(self):
+        self.adjacency = {}
+
+    def add_vertex(self, vertex):
+        if vertex not in self.adjacency:
+            self.adjacency[vertex] = []
+
+    def add_edge(self, v1, v2, weight=1):
+        self.add_vertex(v1)
+        self.add_vertex(v2)
+        self.adjacency[v1].append((v2, weight))
+        self.adjacency[v2].append((v1, weight))
+
+    def bfs(self, start):
+        visited = set()
+        queue = [start]
+        visited.add(start)
+        result = []
+        while queue:
+            vertex = queue.pop(0)
+            result.append(vertex)
+            for neighbor, _ in self.adjacency.get(vertex, []):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        return result
+
+    def dfs(self, start):
+        visited = set()
+        result = []
+        self._dfs_recursive(start, visited, result)
+        return result
+
+    def _dfs_recursive(self, vertex, visited, result):
+        visited.add(vertex)
+        result.append(vertex)
+        for neighbor, _ in self.adjacency.get(vertex, []):
+            if neighbor not in visited:
+                self._dfs_recursive(neighbor, visited, result)
+
+    def dijkstra(self, start):
+        import heapq
+        distances = {v: float('inf') for v in self.adjacency}
+        distances[start] = 0
+        pq = [(0, start)]
+        while pq:
+            dist, vertex = heapq.heappop(pq)
+            if dist > distances[vertex]:
+                continue
+            for neighbor, weight in self.adjacency[vertex]:
+                new_dist = dist + weight
+                if new_dist < distances[neighbor]:
+                    distances[neighbor] = new_dist
+                    heapq.heappush(pq, (new_dist, neighbor))
+        return distances
+
+    def has_path(self, start, end):
+        visited = set()
+        stack = [start]
+        while stack:
+            vertex = stack.pop()
+            if vertex == end:
+                return True
+            visited.add(vertex)
+            for neighbor, _ in self.adjacency.get(vertex, []):
+                if neighbor not in visited:
+                    stack.append(neighbor)
+        return False
+
+
+# Python: Dynamic programming
+def fibonacci(n):
+    if n <= 1:
+        return n
+    dp = [0] * (n + 1)
+    dp[1] = 1
+    for i in range(2, n + 1):
+        dp[i] = dp[i - 1] + dp[i - 2]
+    return dp[n]
+
+
+def fibonacci_memo(n, memo=None):
+    if memo is None:
+        memo = {}
+    if n in memo:
+        return memo[n]
+    if n <= 1:
+        return n
+    memo[n] = fibonacci_memo(n - 1, memo) + fibonacci_memo(n - 2, memo)
+    return memo[n]
+
+
+def longest_common_subsequence(s1, s2):
+    m, n = len(s1), len(s2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if s1[i - 1] == s2[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+    return dp[m][n]
+
+
+def knapsack_01(weights, values, capacity):
+    n = len(weights)
+    dp = [[0] * (capacity + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        for w in range(capacity + 1):
+            if weights[i - 1] <= w:
+                dp[i][w] = max(
+                    dp[i - 1][w],
+                    dp[i - 1][w - weights[i - 1]] + values[i - 1]
+                )
+            else:
+                dp[i][w] = dp[i - 1][w]
+    return dp[n][capacity]
+
+
+def coin_change(coins, amount):
+    dp = [float('inf')] * (amount + 1)
+    dp[0] = 0
+    for coin in coins:
+        for x in range(coin, amount + 1):
+            dp[x] = min(dp[x], dp[x - coin] + 1)
+    return dp[amount] if dp[amount] != float('inf') else -1
+
+
+def edit_distance(s1, s2):
+    m, n = len(s1), len(s2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    for i in range(m + 1):
+        dp[i][0] = i
+    for j in range(n + 1):
+        dp[0][j] = j
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if s1[i - 1] == s2[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1]
+            else:
+                dp[i][j] = 1 + min(
+                    dp[i - 1][j],
+                    dp[i][j - 1],
+                    dp[i - 1][j - 1]
+                )
+    return dp[m][n]
+
+
+def longest_increasing_subsequence(arr):
+    if not arr:
+        return 0
+    n = len(arr)
+    dp = [1] * n
+    for i in range(1, n):
+        for j in range(i):
+            if arr[j] < arr[i]:
+                dp[i] = max(dp[i], dp[j] + 1)
+    return max(dp)
+
+
+def max_subarray_sum(arr):
+    if not arr:
+        return 0
+    max_sum = current = arr[0]
+    for num in arr[1:]:
+        current = max(num, current + num)
+        max_sum = max(max_sum, current)
+    return max_sum
+
+
+# Python: String algorithms
+def is_palindrome(s):
+    s = s.lower().replace(" ", "")
+    return s == s[::-1]
+
+
+def reverse_string(s):
+    return s[::-1]
+
+
+def count_vowels(s):
+    return sum(1 for c in s.lower() if c in "aeiou")
+
+
+def caesar_cipher(text, shift):
+    result = []
+    for char in text:
+        if char.isalpha():
+            base = ord('A') if char.isupper() else ord('a')
+            result.append(chr((ord(char) - base + shift) % 26 + base))
+        else:
+            result.append(char)
+    return ''.join(result)
+
+
+def anagram_check(s1, s2):
+    return sorted(s1.lower().replace(" ", "")) == sorted(s2.lower().replace(" ", ""))
+
+
+def longest_common_prefix(strings):
+    if not strings:
+        return ""
+    prefix = strings[0]
+    for s in strings[1:]:
+        while not s.startswith(prefix):
+            prefix = prefix[:-1]
+            if not prefix:
+                return ""
+    return prefix
+
+
+def kmp_search(text, pattern):
+    def compute_lps(pattern):
+        lps = [0] * len(pattern)
+        length = 0
+        i = 1
+        while i < len(pattern):
+            if pattern[i] == pattern[length]:
+                length += 1
+                lps[i] = length
+                i += 1
+            else:
+                if length != 0:
+                    length = lps[length - 1]
+                else:
+                    lps[i] = 0
+                    i += 1
+        return lps
+
+    n, m = len(text), len(pattern)
+    lps = compute_lps(pattern)
+    i = j = 0
+    positions = []
+    while i < n:
+        if text[i] == pattern[j]:
+            i += 1
+            j += 1
+        if j == m:
+            positions.append(i - j)
+            j = lps[j - 1]
+        elif i < n and text[i] != pattern[j]:
+            if j != 0:
+                j = lps[j - 1]
+            else:
+                i += 1
+    return positions
+
+
+# Python: Math utilities
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+
+
+def lcm(a, b):
+    return abs(a * b) // gcd(a, b)
+
+
+def is_prime(n):
+    if n < 2:
+        return False
+    if n < 4:
+        return True
+    if n % 2 == 0 or n % 3 == 0:
+        return False
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0:
+            return False
+        i += 6
+    return True
+
+
+def sieve_of_eratosthenes(limit):
+    is_prime = [True] * (limit + 1)
+    is_prime[0] = is_prime[1] = False
+    for i in range(2, int(limit**0.5) + 1):
+        if is_prime[i]:
+            for j in range(i * i, limit + 1, i):
+                is_prime[j] = False
+    return [i for i in range(limit + 1) if is_prime[i]]
+
+
+def factorial(n):
+    if n < 0:
+        raise ValueError("n must be non-negative")
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result
+
+
+def power(base, exp):
+    if exp == 0:
+        return 1
+    if exp < 0:
+        return 1 / power(base, -exp)
+    if exp % 2 == 0:
+        half = power(base, exp // 2)
+        return half * half
+    return base * power(base, exp - 1)
+
+
+def matrix_multiply(a, b):
+    rows_a, cols_a = len(a), len(a[0])
+    rows_b, cols_b = len(b), len(b[0])
+    if cols_a != rows_b:
+        raise ValueError("Incompatible matrix dimensions")
+    result = [[0] * cols_b for _ in range(rows_a)]
+    for i in range(rows_a):
+        for j in range(cols_b):
+            for k in range(cols_a):
+                result[i][j] += a[i][k] * b[k][j]
+    return result
+
+
+def transpose(matrix):
+    return [[matrix[j][i] for j in range(len(matrix))] for i in range(len(matrix[0]))]
+
+
+# Python: File operations
+def read_file(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        return f.read()
+
+
+def write_file(path, content):
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+
+def append_file(path, content):
+    with open(path, 'a', encoding='utf-8') as f:
+        f.write(content)
+
+
+def read_lines(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        return f.readlines()
+
+
+def read_json(path):
+    import json
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def write_json(path, data, indent=2):
+    import json
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=indent, ensure_ascii=False)
+
+
+def read_csv(path):
+    import csv
+    with open(path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        return list(reader)
+
+
+def write_csv(path, data, fieldnames):
+    import csv
+    with open(path, 'w', encoding='utf-8', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(data)
+
+
+# Python: Functional programming patterns
+def compose(*functions):
+    def composed(x):
+        result = x
+        for fn in reversed(functions):
+            result = fn(result)
+        return result
+    return composed
+
+
+def pipe(*functions):
+    def piped(x):
+        result = x
+        for fn in functions:
+            result = fn(result)
+        return result
+    return piped
+
+
+def curry(func):
+    import functools
+    @functools.wraps(func)
+    def curried(*args, **kwargs):
+        if len(args) + len(kwargs) >= func.__code__.co_argcount:
+            return func(*args, **kwargs)
+        return lambda *more_args, **more_kwargs: curried(
+            *args, *more_args, **kwargs, **more_kwargs
+        )
+    return curried
+
+
+def memoize(func):
+    cache = {}
+    def wrapper(*args):
+        if args not in cache:
+            cache[args] = func(*args)
+        return cache[args]
+    return wrapper
+
+
+def flatten(lst):
+    result = []
+    for item in lst:
+        if isinstance(item, list):
+            result.extend(flatten(item))
+        else:
+            result.append(item)
+    return result
+
+
+def chunk(lst, size):
+    return [lst[i:i + size] for i in range(0, len(lst), size)]
+
+
+def unique(lst):
+    seen = set()
+    result = []
+    for item in lst:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def group_by(lst, key_func):
+    groups = {}
+    for item in lst:
+        key = key_func(item)
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(item)
+    return groups
+
+
+def zip_with(func, *iterables):
+    return [func(*args) for args in zip(*iterables)]
+
+
+# Python: Error handling patterns
+class AppError(Exception):
+    def __init__(self, message, code=None):
+        super().__init__(message)
+        self.code = code
+
+
+class NotFoundError(AppError):
+    def __init__(self, resource, identifier):
+        super().__init__(f"{resource} not found: {identifier}", code=404)
+
+
+class ValidationError(AppError):
+    def __init__(self, field, message):
+        super().__init__(f"Validation error on {field}: {message}", code=400)
+        self.field = field
+
+
+def safe_divide(a, b):
+    try:
+        return a / b
+    except ZeroDivisionError:
+        return None
+
+
+def safe_parse_int(s, default=0):
+    try:
+        return int(s)
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_parse_float(s, default=0.0):
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return default
+
+
+def retry(func, max_attempts=3, delay=1.0):
+    import time
+    for attempt in range(max_attempts):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_attempts - 1:
+                raise
+            time.sleep(delay * (attempt + 1))
+
+
+# Python: Decorators
+import functools
+import time as time_module
+
+
+def timer(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time_module.perf_counter()
+        result = func(*args, **kwargs)
+        elapsed = time_module.perf_counter() - start
+        print(f"{func.__name__} took {elapsed:.4f}s")
+        return result
+    return wrapper
+
+
+def cache(func):
+    memo = {}
+    @functools.wraps(func)
+    def wrapper(*args):
+        if args not in memo:
+            memo[args] = func(*args)
+        return memo[args]
+    return wrapper
+
+
+def log_calls(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        print(f"Calling {func.__name__}({args}, {kwargs})")
+        result = func(*args, **kwargs)
+        print(f"{func.__name__} returned {result}")
+        return result
+    return wrapper
+
+
+def validate_types(*types):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            for arg, expected_type in zip(args, types):
+                if not isinstance(arg, expected_type):
+                    raise TypeError(
+                        f"Expected {expected_type.__name__}, got {type(arg).__name__}"
+                    )
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def singleton(cls):
+    instances = {}
+    @functools.wraps(cls)
+    def get_instance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+    return get_instance
+
+
+# Python: Context managers
+class FileManager:
+    def __init__(self, path, mode='r'):
+        self.path = path
+        self.mode = mode
+        self.file = None
+
+    def __enter__(self):
+        self.file = open(self.path, self.mode, encoding='utf-8')
+        return self.file
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.file:
+            self.file.close()
+        return False
+
+
+class Timer:
+    def __init__(self, name="Timer"):
+        self.name = name
+        self.start = None
+        self.elapsed = None
+
+    def __enter__(self):
+        self.start = time_module.perf_counter()
+        return self
+
+    def __exit__(self, *args):
+        self.elapsed = time_module.perf_counter() - self.start
+        print(f"{self.name}: {self.elapsed:.4f}s")
+        return False
+
+
+class DatabaseConnection:
+    def __init__(self, host, port, database):
+        self.host = host
+        self.port = port
+        self.database = database
+        self.connected = False
+
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.disconnect()
+        return False
+
+    def connect(self):
+        self.connected = True
+
+    def disconnect(self):
+        self.connected = False
+
+    def query(self, sql):
+        if not self.connected:
+            raise RuntimeError("Not connected to database")
+        return []
+
+
+# Python: Generators and iterators
+def fibonacci_generator():
+    a, b = 0, 1
+    while True:
+        yield a
+        a, b = b, a + b
+
+
+def range_generator(start, stop, step=1):
+    current = start
+    while current < stop:
+        yield current
+        current += step
+
+
+def read_large_file(path, chunk_size=8192):
+    with open(path, 'r', encoding='utf-8') as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
+
+
+def sliding_window(iterable, size):
+    from collections import deque
+    window = deque(maxlen=size)
+    for item in iterable:
+        window.append(item)
+        if len(window) == size:
+            yield tuple(window)
+
+
+def batch_iterator(iterable, batch_size):
+    batch = []
+    for item in iterable:
+        batch.append(item)
+        if len(batch) == batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
+# Python: Design patterns
+class Observer:
+    def update(self, event, data):
+        raise NotImplementedError
+
+
+class EventEmitter:
+    def __init__(self):
+        self._listeners = {}
+
+    def on(self, event, listener):
+        if event not in self._listeners:
+            self._listeners[event] = []
+        self._listeners[event].append(listener)
+
+    def emit(self, event, data=None):
+        for listener in self._listeners.get(event, []):
+            listener(event, data)
+
+    def off(self, event, listener):
+        if event in self._listeners:
+            self._listeners[event].remove(listener)
+
+
+class Command:
+    def execute(self):
+        raise NotImplementedError
+
+    def undo(self):
+        raise NotImplementedError
+
+
+class CommandHistory:
+    def __init__(self):
+        self.history = []
+        self.position = -1
+
+    def execute(self, command):
+        command.execute()
+        self.history = self.history[:self.position + 1]
+        self.history.append(command)
+        self.position += 1
+
+    def undo(self):
+        if self.position >= 0:
+            self.history[self.position].undo()
+            self.position -= 1
+
+    def redo(self):
+        if self.position < len(self.history) - 1:
+            self.position += 1
+            self.history[self.position].execute()
+
+
+class Strategy:
+    def execute(self, data):
+        raise NotImplementedError
+
+
+class Context:
+    def __init__(self, strategy):
+        self._strategy = strategy
+
+    def set_strategy(self, strategy):
+        self._strategy = strategy
+
+    def execute(self, data):
+        return self._strategy.execute(data)
+
+
+# Python: Async patterns
+import asyncio
+
+
+async def fetch_data(url):
+    await asyncio.sleep(0.1)
+    return {"url": url, "status": 200}
+
+
+async def process_batch(items, processor):
+    tasks = [processor(item) for item in items]
+    return await asyncio.gather(*tasks)
+
+
+async def retry_async(coro_func, max_attempts=3, delay=1.0):
+    for attempt in range(max_attempts):
+        try:
+            return await coro_func()
+        except Exception:
+            if attempt == max_attempts - 1:
+                raise
+            await asyncio.sleep(delay)
+
+
+async def timeout_wrapper(coro, timeout_seconds):
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        return None
+
+
+class AsyncQueue:
+    def __init__(self, maxsize=0):
+        self.queue = asyncio.Queue(maxsize=maxsize)
+
+    async def put(self, item):
+        await self.queue.put(item)
+
+    async def get(self):
+        return await self.queue.get()
+
+    def empty(self):
+        return self.queue.empty()
+
+
+# Python: Testing utilities
+def assert_equal(actual, expected, message=""):
+    if actual != expected:
+        raise AssertionError(
+            f"Expected {expected}, got {actual}. {message}"
+        )
+
+
+def assert_raises(exception_type, func, *args, **kwargs):
+    try:
+        func(*args, **kwargs)
+        raise AssertionError(f"Expected {exception_type.__name__} to be raised")
+    except exception_type:
+        pass
+
+
+def assert_almost_equal(actual, expected, tolerance=1e-6):
+    if abs(actual - expected) > tolerance:
+        raise AssertionError(
+            f"Expected {expected} +/- {tolerance}, got {actual}"
+        )
+
+
+def assert_contains(container, item):
+    if item not in container:
+        raise AssertionError(f"{item} not found in {container}")
+
+
+class TestCase:
+    def setup(self):
+        pass
+
+    def teardown(self):
+        pass
+
+    def run_tests(self):
+        methods = [m for m in dir(self) if m.startswith('test_')]
+        passed = failed = 0
+        for method_name in sorted(methods):
+            self.setup()
+            try:
+                getattr(self, method_name)()
+                print(f"  PASS: {method_name}")
+                passed += 1
+            except Exception as e:
+                print(f"  FAIL: {method_name} - {e}")
+                failed += 1
+            finally:
+                self.teardown()
+        print(f"\nResults: {passed} passed, {failed} failed")
+        return failed == 0
+
+
+# Python: HTTP and API patterns
+class HTTPResponse:
+    def __init__(self, status, body, headers=None):
+        self.status = status
+        self.body = body
+        self.headers = headers or {}
+
+    def json(self):
+        import json
+        return json.loads(self.body)
+
+    def is_ok(self):
+        return 200 <= self.status < 300
+
+
+class APIClient:
+    def __init__(self, base_url, headers=None):
+        self.base_url = base_url.rstrip('/')
+        self.headers = headers or {}
+
+    def _build_url(self, path):
+        return f"{self.base_url}/{path.lstrip('/')}"
+
+    def get(self, path, params=None):
+        url = self._build_url(path)
+        return HTTPResponse(200, '{}')
+
+    def post(self, path, data=None):
+        url = self._build_url(path)
+        return HTTPResponse(201, '{}')
+
+    def put(self, path, data=None):
+        url = self._build_url(path)
+        return HTTPResponse(200, '{}')
+
+    def delete(self, path):
+        url = self._build_url(path)
+        return HTTPResponse(204, '')
+
+
+class RateLimiter:
+    def __init__(self, max_calls, period):
+        self.max_calls = max_calls
+        self.period = period
+        self.calls = []
+
+    def allow(self):
+        now = time_module.time()
+        self.calls = [t for t in self.calls if now - t < self.period]
+        if len(self.calls) < self.max_calls:
+            self.calls.append(now)
+            return True
+        return False
+
+
+# Python: Configuration and environment
+class Config:
+    def __init__(self, defaults=None):
+        self._data = defaults or {}
+
+    def get(self, key, default=None):
+        keys = key.split('.')
+        value = self._data
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+        return value
+
+    def set(self, key, value):
+        keys = key.split('.')
+        data = self._data
+        for k in keys[:-1]:
+            if k not in data:
+                data[k] = {}
+            data = data[k]
+        data[keys[-1]] = value
+
+    def load_env(self, prefix="APP"):
+        import os
+        for key, value in os.environ.items():
+            if key.startswith(prefix + "_"):
+                config_key = key[len(prefix) + 1:].lower().replace("__", ".")
+                self.set(config_key, value)
+
+    def to_dict(self):
+        return dict(self._data)
+
+
+# Python: Logging utilities
+class Logger:
+    LEVELS = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3}
+
+    def __init__(self, name, level="INFO"):
+        self.name = name
+        self.level = self.LEVELS.get(level, 1)
+
+    def _log(self, level, message):
+        if self.LEVELS.get(level, 0) >= self.level:
+            timestamp = time_module.strftime("%Y-%m-%d %H:%M:%S")
+            print(f"[{timestamp}] [{self.name}] {level}: {message}")
+
+    def debug(self, message):
+        self._log("DEBUG", message)
+
+    def info(self, message):
+        self._log("INFO", message)
+
+    def warning(self, message):
+        self._log("WARNING", message)
+
+    def error(self, message):
+        self._log("ERROR", message)
+
+
+# Python: Data validation
+class Validator:
+    def __init__(self):
+        self.errors = []
+
+    def required(self, value, field_name):
+        if value is None or (isinstance(value, str) and not value.strip()):
+            self.errors.append(f"{field_name} is required")
+            return False
+        return True
+
+    def min_length(self, value, length, field_name):
+        if isinstance(value, str) and len(value) < length:
+            self.errors.append(f"{field_name} must be at least {length} characters")
+            return False
+        return True
+
+    def max_length(self, value, length, field_name):
+        if isinstance(value, str) and len(value) > length:
+            self.errors.append(f"{field_name} must be at most {length} characters")
+            return False
+        return True
+
+    def in_range(self, value, min_val, max_val, field_name):
+        if not (min_val <= value <= max_val):
+            self.errors.append(f"{field_name} must be between {min_val} and {max_val}")
+            return False
+        return True
+
+    def matches_pattern(self, value, pattern, field_name):
+        import re
+        if not re.match(pattern, value):
+            self.errors.append(f"{field_name} has invalid format")
+            return False
+        return True
+
+    def is_email(self, value, field_name="email"):
+        import re
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return self.matches_pattern(value, pattern, field_name)
+
+    def is_valid(self):
+        return len(self.errors) == 0
+
+    def get_errors(self):
+        return list(self.errors)
+
+    def reset(self):
+        self.errors.clear()
+
+
+# Python: Caching
+class LRUCache:
+    def __init__(self, capacity):
+        from collections import OrderedDict
+        self.capacity = capacity
+        self.cache = OrderedDict()
+
+    def get(self, key):
+        if key in self.cache:
+            self.cache.move_to_end(key)
+            return self.cache[key]
+        return None
+
+    def put(self, key, value):
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        self.cache[key] = value
+        if len(self.cache) > self.capacity:
+            self.cache.popitem(last=False)
+
+    def clear(self):
+        self.cache.clear()
+
+    def size(self):
+        return len(self.cache)
+
+
+class TTLCache:
+    def __init__(self, ttl_seconds):
+        self.ttl = ttl_seconds
+        self.cache = {}
+
+    def get(self, key):
+        if key in self.cache:
+            value, timestamp = self.cache[key]
+            if time_module.time() - timestamp < self.ttl:
+                return value
+            del self.cache[key]
+        return None
+
+    def put(self, key, value):
+        self.cache[key] = (value, time_module.time())
+
+    def clear_expired(self):
+        now = time_module.time()
+        expired = [k for k, (_, t) in self.cache.items() if now - t >= self.ttl]
+        for k in expired:
+            del self.cache[k]
+
+
+# Python: Concurrency patterns
+from threading import Lock, Thread
+
+
+class ThreadSafeCounter:
+    def __init__(self):
+        self._value = 0
+        self._lock = Lock()
+
+    def increment(self):
+        with self._lock:
+            self._value += 1
+
+    def decrement(self):
+        with self._lock:
+            self._value -= 1
+
+    @property
+    def value(self):
+        with self._lock:
+            return self._value
+
+
+class WorkerPool:
+    def __init__(self, num_workers):
+        self.num_workers = num_workers
+        self.tasks = []
+        self.results = []
+
+    def submit(self, func, *args):
+        self.tasks.append((func, args))
+
+    def execute(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
+            futures = [executor.submit(func, *args) for func, args in self.tasks]
+            self.results = [f.result() for f in futures]
+        return self.results
+
+
+# Python: Path utilities
+from pathlib import Path as PathLib
+
+
+def ensure_directory(path):
+    PathLib(path).mkdir(parents=True, exist_ok=True)
+
+
+def list_files(directory, pattern="*"):
+    return sorted(PathLib(directory).glob(pattern))
+
+
+def list_files_recursive(directory, pattern="*"):
+    return sorted(PathLib(directory).rglob(pattern))
+
+
+def file_extension(path):
+    return PathLib(path).suffix
+
+
+def file_stem(path):
+    return PathLib(path).stem
+
+
+def file_size(path):
+    return PathLib(path).stat().st_size
+
+
+def copy_file(src, dst):
+    import shutil
+    shutil.copy2(src, dst)
+
+
+def move_file(src, dst):
+    import shutil
+    shutil.move(src, dst)
+
+
+# Python: Date and time utilities
+from datetime import datetime, timedelta
+
+
+def now():
+    return datetime.now()
+
+
+def today():
+    return datetime.now().date()
+
+
+def days_between(date1, date2):
+    return abs((date2 - date1).days)
+
+
+def add_days(date, days):
+    return date + timedelta(days=days)
+
+
+def format_date(date, fmt="%Y-%m-%d"):
+    return date.strftime(fmt)
+
+
+def parse_date(date_str, fmt="%Y-%m-%d"):
+    return datetime.strptime(date_str, fmt)
+
+
+def is_weekend(date):
+    return date.weekday() >= 5
+
+
+def start_of_month(date):
+    return date.replace(day=1)
+
+
+def end_of_month(date):
+    import calendar
+    last_day = calendar.monthrange(date.year, date.month)[1]
+    return date.replace(day=last_day)
+
+
+# Python: Number formatting
+def format_number(n, decimals=2):
+    return f"{n:,.{decimals}f}"
+
+
+def format_bytes(size):
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} PB"
+
+
+def format_duration(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return f"{hours}h {minutes}m {secs}s"
+    if minutes > 0:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+def format_percentage(value, decimals=1):
+    return f"{value * 100:.{decimals}f}%"
+
+
+def clamp(value, min_val, max_val):
+    return max(min_val, min(value, max_val))
+
+
+def lerp(a, b, t):
+    return a + (b - a) * clamp(t, 0, 1)
+
+
+def normalize(value, min_val, max_val):
+    if max_val == min_val:
+        return 0
+    return (value - min_val) / (max_val - min_val)
+
+
+# PyTorch: Neural network building blocks
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class LinearBlock(nn.Module):
+    def __init__(self, in_features, out_features, dropout=0.1):
+        super().__init__()
+        self.linear = nn.Linear(in_features, out_features)
+        self.norm = nn.LayerNorm(out_features)
+        self.dropout = nn.Dropout(dropout)
+        self.activation = nn.GELU()
+
+    def forward(self, x):
+        return self.dropout(self.activation(self.norm(self.linear(x))))
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, dim, dropout=0.1):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, dim * 4),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim * 4, dim),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x):
+        return x + self.net(x)
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, dim, heads=8, dropout=0.1):
+        super().__init__()
+        self.heads = heads
+        self.head_dim = dim // heads
+        self.scale = self.head_dim ** -0.5
+        self.qkv = nn.Linear(dim, dim * 3, bias=False)
+        self.proj = nn.Linear(dim, dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, mask=None):
+        B, T, C = x.shape
+        qkv = self.qkv(x).reshape(B, T, 3, self.heads, self.head_dim)
+        q, k, v = qkv.permute(2, 0, 3, 1, 4)
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        if mask is not None:
+            attn = attn.masked_fill(mask, float('-inf'))
+        attn = self.dropout(attn.softmax(dim=-1))
+        out = (attn @ v).transpose(1, 2).reshape(B, T, C)
+        return self.proj(out)
+
+
+class FeedForward(nn.Module):
+    def __init__(self, dim, mult=4, dropout=0.1):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(dim, dim * mult),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim * mult, dim),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, dim, heads=8, dropout=0.1):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(dim)
+        self.attn = MultiHeadAttention(dim, heads, dropout)
+        self.norm2 = nn.LayerNorm(dim)
+        self.ff = FeedForward(dim, dropout=dropout)
+
+    def forward(self, x, mask=None):
+        x = x + self.attn(self.norm1(x), mask)
+        x = x + self.ff(self.norm2(x))
+        return x
+
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, dim, max_len=5000):
+        super().__init__()
+        import math
+        pe = torch.zeros(max_len, dim)
+        position = torch.arange(0, max_len).unsqueeze(1).float()
+        div_term = torch.exp(
+            torch.arange(0, dim, 2).float() * (-math.log(10000.0) / dim)
+        )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe.unsqueeze(0))
+
+    def forward(self, x):
+        return x + self.pe[:, :x.size(1)]
+
+
+class Embedding(nn.Module):
+    def __init__(self, vocab_size, dim, max_len=512):
+        super().__init__()
+        self.token_emb = nn.Embedding(vocab_size, dim)
+        self.pos_emb = nn.Embedding(max_len, dim)
+        self.norm = nn.LayerNorm(dim)
+        self.dropout = nn.Dropout(0.1)
+
+    def forward(self, x):
+        B, T = x.shape
+        pos = torch.arange(T, device=x.device)
+        x = self.token_emb(x) + self.pos_emb(pos)
+        return self.dropout(self.norm(x))
+
+
+# PyTorch: Training utilities
+class EarlyStopping:
+    def __init__(self, patience=10, min_delta=0.0):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = None
+        self.should_stop = False
+
+    def __call__(self, val_loss):
+        if self.best_loss is None:
+            self.best_loss = val_loss
+        elif val_loss > self.best_loss - self.min_delta:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.should_stop = True
+        else:
+            self.best_loss = val_loss
+            self.counter = 0
+        return self.should_stop
+
+
+class ExponentialMovingAverage:
+    def __init__(self, model, decay=0.999):
+        self.model = model
+        self.decay = decay
+        self.shadow = {}
+        self.backup = {}
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = param.data.clone()
+
+    def update(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = (
+                    self.decay * self.shadow[name] + (1 - self.decay) * param.data
+                )
+
+    def apply_shadow(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.backup[name] = param.data.clone()
+                param.data = self.shadow[name]
+
+    def restore(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                param.data = self.backup[name]
+
+
+class CosineWarmupScheduler:
+    def __init__(self, optimizer, warmup_steps, total_steps, min_lr=1e-6):
+        self.optimizer = optimizer
+        self.warmup_steps = warmup_steps
+        self.total_steps = total_steps
+        self.min_lr = min_lr
+        self.base_lrs = [group['lr'] for group in optimizer.param_groups]
+        self.step_count = 0
+
+    def step(self):
+        self.step_count += 1
+        lr = self.get_lr()
+        for group in self.optimizer.param_groups:
+            group['lr'] = lr
+
+    def get_lr(self):
+        import math
+        if self.step_count < self.warmup_steps:
+            return self.base_lrs[0] * self.step_count / self.warmup_steps
+        progress = (self.step_count - self.warmup_steps) / max(
+            1, self.total_steps - self.warmup_steps
+        )
+        return self.min_lr + 0.5 * (self.base_lrs[0] - self.min_lr) * (
+            1 + math.cos(math.pi * progress)
+        )
+
+
+class GradientAccumulator:
+    def __init__(self, model, optimizer, accum_steps=4):
+        self.model = model
+        self.optimizer = optimizer
+        self.accum_steps = accum_steps
+        self.step_count = 0
+
+    def backward(self, loss):
+        scaled_loss = loss / self.accum_steps
+        scaled_loss.backward()
+        self.step_count += 1
+        if self.step_count % self.accum_steps == 0:
+            nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            return True
+        return False
+
+
+# PyTorch: Loss functions
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=1.0, gamma=2.0):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+
+    def forward(self, inputs, targets):
+        ce_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-ce_loss)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+        return focal_loss.mean()
+
+
+class LabelSmoothingLoss(nn.Module):
+    def __init__(self, classes, smoothing=0.1):
+        super().__init__()
+        self.classes = classes
+        self.smoothing = smoothing
+
+    def forward(self, pred, target):
+        confidence = 1.0 - self.smoothing
+        smooth_val = self.smoothing / (self.classes - 1)
+        one_hot = torch.full_like(pred, smooth_val)
+        one_hot.scatter_(1, target.unsqueeze(1), confidence)
+        log_probs = F.log_softmax(pred, dim=-1)
+        return -(one_hot * log_probs).sum(dim=-1).mean()
+
+
+class ContrastiveLoss(nn.Module):
+    def __init__(self, temperature=0.07):
+        super().__init__()
+        self.temperature = temperature
+
+    def forward(self, features, labels):
+        features = F.normalize(features, dim=1)
+        similarity = features @ features.T / self.temperature
+        labels_matrix = labels.unsqueeze(0) == labels.unsqueeze(1)
+        mask = ~torch.eye(len(labels), dtype=torch.bool, device=labels.device)
+        positives = labels_matrix & mask
+        log_probs = F.log_softmax(similarity, dim=1)
+        loss = -(log_probs * positives.float()).sum(1) / positives.sum(1).clamp(min=1)
+        return loss.mean()
+
+
+# PyTorch: Data augmentation
+class RandomNoise:
+    def __init__(self, std=0.01):
+        self.std = std
+
+    def __call__(self, tensor):
+        return tensor + torch.randn_like(tensor) * self.std
+
+
+class RandomMask:
+    def __init__(self, mask_ratio=0.15):
+        self.mask_ratio = mask_ratio
+
+    def __call__(self, tensor):
+        mask = torch.rand_like(tensor.float()) > self.mask_ratio
+        return tensor * mask
+
+
+class MixUp:
+    def __init__(self, alpha=0.2):
+        self.alpha = alpha
+
+    def __call__(self, x1, y1, x2, y2):
+        lam = torch.distributions.Beta(self.alpha, self.alpha).sample()
+        x = lam * x1 + (1 - lam) * x2
+        y = lam * y1 + (1 - lam) * y2
+        return x, y
+
+
+# PyTorch: Metrics
+def accuracy(predictions, targets):
+    pred_classes = predictions.argmax(dim=-1)
+    return (pred_classes == targets).float().mean().item()
+
+
+def top_k_accuracy(predictions, targets, k=5):
+    top_k = predictions.topk(k, dim=-1).indices
+    correct = top_k.eq(targets.unsqueeze(-1)).any(dim=-1)
+    return correct.float().mean().item()
+
+
+def precision_recall_f1(predictions, targets, num_classes):
+    pred_classes = predictions.argmax(dim=-1)
+    results = {}
+    for c in range(num_classes):
+        tp = ((pred_classes == c) & (targets == c)).sum().item()
+        fp = ((pred_classes == c) & (targets != c)).sum().item()
+        fn = ((pred_classes != c) & (targets == c)).sum().item()
+        precision = tp / max(tp + fp, 1)
+        recall = tp / max(tp + fn, 1)
+        f1 = 2 * precision * recall / max(precision + recall, 1e-8)
+        results[c] = {"precision": precision, "recall": recall, "f1": f1}
+    return results
+
+
+def perplexity(loss):
+    import math
+    return math.exp(loss)
+
+
+# Python: Web server patterns
+class Router:
+    def __init__(self):
+        self.routes = {}
+
+    def route(self, path, methods=None):
+        if methods is None:
+            methods = ['GET']
+        def decorator(handler):
+            for method in methods:
+                self.routes[(method, path)] = handler
+            return handler
+        return decorator
+
+    def dispatch(self, method, path):
+        handler = self.routes.get((method, path))
+        if handler is None:
+            raise KeyError(f"No route for {method} {path}")
+        return handler
+
+
+class Middleware:
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, request):
+        return self.app(request)
+
+
+class CORSMiddleware(Middleware):
+    def __init__(self, app, origins=None):
+        super().__init__(app)
+        self.origins = origins or ['*']
+
+    def __call__(self, request):
+        response = self.app(request)
+        response.headers['Access-Control-Allow-Origin'] = ', '.join(self.origins)
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE'
+        return response
+
+
+class AuthMiddleware(Middleware):
+    def __init__(self, app, secret_key):
+        super().__init__(app)
+        self.secret_key = secret_key
+
+    def __call__(self, request):
+        token = request.headers.get('Authorization', '')
+        if not self.verify_token(token):
+            return HTTPResponse(401, 'Unauthorized')
+        return self.app(request)
+
+    def verify_token(self, token):
+        return token.startswith('Bearer ') and len(token) > 7
+
+
+# Python: Database patterns
+class Repository:
+    def __init__(self):
+        self._store = {}
+        self._next_id = 1
+
+    def create(self, data):
+        item = dict(data)
+        item['id'] = self._next_id
+        self._store[self._next_id] = item
+        self._next_id += 1
+        return item
+
+    def find_by_id(self, id):
+        return self._store.get(id)
+
+    def find_all(self):
+        return list(self._store.values())
+
+    def update(self, id, data):
+        if id not in self._store:
+            raise KeyError(f"Item {id} not found")
+        self._store[id].update(data)
+        return self._store[id]
+
+    def delete(self, id):
+        if id not in self._store:
+            raise KeyError(f"Item {id} not found")
+        del self._store[id]
+
+    def find_where(self, predicate):
+        return [item for item in self._store.values() if predicate(item)]
+
+    def count(self):
+        return len(self._store)
+
+
+class QueryBuilder:
+    def __init__(self, table):
+        self.table = table
+        self._select = '*'
+        self._where = []
+        self._order = None
+        self._limit = None
+        self._offset = None
+
+    def select(self, *fields):
+        self._select = ', '.join(fields)
+        return self
+
+    def where(self, condition):
+        self._where.append(condition)
+        return self
+
+    def order_by(self, field, direction='ASC'):
+        self._order = f"{field} {direction}"
+        return self
+
+    def limit(self, n):
+        self._limit = n
+        return self
+
+    def offset(self, n):
+        self._offset = n
+        return self
+
+    def build(self):
+        query = f"SELECT {self._select} FROM {self.table}"
+        if self._where:
+            query += " WHERE " + " AND ".join(self._where)
+        if self._order:
+            query += f" ORDER BY {self._order}"
+        if self._limit is not None:
+            query += f" LIMIT {self._limit}"
+        if self._offset is not None:
+            query += f" OFFSET {self._offset}"
+        return query
+
+
+class Migration:
+    def __init__(self, version, description):
+        self.version = version
+        self.description = description
+
+    def up(self):
+        raise NotImplementedError
+
+    def down(self):
+        raise NotImplementedError
+
+
+# Python: State machine
+class StateMachine:
+    def __init__(self, initial_state):
+        self.state = initial_state
+        self.transitions = {}
+        self.callbacks = {}
+
+    def add_transition(self, from_state, event, to_state):
+        if from_state not in self.transitions:
+            self.transitions[from_state] = {}
+        self.transitions[from_state][event] = to_state
+
+    def on_enter(self, state, callback):
+        self.callbacks[state] = callback
+
+    def trigger(self, event):
+        if self.state not in self.transitions:
+            raise ValueError(f"No transitions from state {self.state}")
+        if event not in self.transitions[self.state]:
+            raise ValueError(f"Invalid event {event} for state {self.state}")
+        new_state = self.transitions[self.state][event]
+        self.state = new_state
+        if new_state in self.callbacks:
+            self.callbacks[new_state]()
+        return self.state
+
+    def can_trigger(self, event):
+        return (
+            self.state in self.transitions
+            and event in self.transitions[self.state]
+        )
+
+
+# Python: Pipeline pattern
+class Pipeline:
+    def __init__(self):
+        self.steps = []
+
+    def add_step(self, step):
+        self.steps.append(step)
+        return self
+
+    def execute(self, data):
+        result = data
+        for step in self.steps:
+            result = step(result)
+        return result
+
+
+class DataPipeline:
+    def __init__(self):
+        self.transformers = []
+
+    def add(self, transformer):
+        self.transformers.append(transformer)
+        return self
+
+    def transform(self, data):
+        for t in self.transformers:
+            data = t.transform(data)
+        return data
+
+
+class Transformer:
+    def transform(self, data):
+        raise NotImplementedError
+
+
+class FilterTransformer(Transformer):
+    def __init__(self, predicate):
+        self.predicate = predicate
+
+    def transform(self, data):
+        return [item for item in data if self.predicate(item)]
+
+
+class MapTransformer(Transformer):
+    def __init__(self, func):
+        self.func = func
+
+    def transform(self, data):
+        return [self.func(item) for item in data]
+
+
+class SortTransformer(Transformer):
+    def __init__(self, key=None, reverse=False):
+        self.key = key
+        self.reverse = reverse
+
+    def transform(self, data):
+        return sorted(data, key=self.key, reverse=self.reverse)
+
+
+# Validation example: calculate a mean.
+def mean(values):
+    if not values:
+        raise ValueError("values must not be empty")
+    return sum(values) / len(values)
+
+
+# Validation example: return the larger value.
+def maximum(left, right):
+    if left > right:
+        return left
+    return right
+
+
+# Add two numbers.
+def add(left, right):
+    return left + right
+
+
+# Subtract two numbers.
+def subtract(left, right):
+    return left - right
+
+
+# Multiply two numbers.
+def multiply(left, right):
+    return left * right
+
+
+# Divide two numbers safely.
+def divide(left, right):
+    if right == 0:
+        raise ValueError("right must not be zero")
+    return left / right
+
+
+# Find even numbers.
+def evens(values):
+    return [value for value in values if value % 2 == 0]
+
+
+# Count characters in text.
+def count_characters(text):
+    counts = {}
+    for character in text:
+        counts[character] = counts.get(character, 0) + 1
+    return counts
+
+
+# Return a greeting.
+def greet(name):
+    return "Hello, " + name
+
+
+# Keep positive numbers.
+def positive(values):
+    return [value for value in values if value > 0]
+
+
+# Calculate the square of a number.
+def square(value):
+    return value * value
+
+
+# Find the smallest value.
+def minimum(left, right):
+    if left < right:
+        return left
+    return right
+
+
+"""MOTANAXY — Token-Efficient Code Training System.
+
+A production-ready training pipeline that combines:
+- Ponytail philosophy (minimal, efficient code)
+- MarkItDown (universal file conversion)
+- Byte-level Transformer training with optimized data ingestion
+"""
+
+__version__ = "1.0.0"
+__author__ = "MOTANAXY"
+
+
+"""MOTANAXY CLI — Command-line interface for the training system.
+
+Usage:
+    python -m motanaxy ingest   --sources ./src ./docs --out corpus.txt
+    python -m motanaxy train    --corpus corpus.txt --preset nano --steps 500
+    python -m motanaxy generate --checkpoint runs/mtn_001/best_model.pt --prompt "def "
+    python -m motanaxy info     --checkpoint runs/mtn_001/best_model.pt
+    python -m motanaxy check
+"""
+
+import argparse
+import json
+import logging
+import sys
+from pathlib import Path
+
+import torch
+
+from .ingestor import DataIngestor, build_corpus, corpus_stats
+from .model import MotanaxyModel, PRESETS, from_preset, load_checkpoint
+from .trainer import Trainer, TrainingConfig, prepare_data
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("motanaxy")
+
+
+def cmd_ingest(args):
+    """Ingest files/directories into a training corpus."""
+    ingestor = DataIngestor(use_markitdown=not args.no_markitdown)
+    documents = ingestor.ingest_paths(args.sources)
+
+    if not documents:
+        logger.error("No documents ingested. Check your --sources paths.")
+        sys.exit(1)
+
+    corpus = build_corpus(documents)
+    stats = corpus_stats(corpus)
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(corpus, encoding="utf-8")
+
+    print(f"\n{'='*50}")
+    print(f"  MOTANAXY Ingestion Complete")
+    print(f"{'='*50}")
+    print(f"  Files scanned:   {ingestor.stats['files_scanned']}")
+    print(f"  Files ingested:  {ingestor.stats['files_ingested']}")
+    print(f"  Files skipped:   {ingestor.stats['files_skipped']}")
+    print(f"  Duplicates:      {ingestor.stats['files_duplicate']}")
+    print(f"  Raw bytes:       {ingestor.stats['bytes_raw']:,}")
+    print(f"  Clean bytes:     {ingestor.stats['bytes_clean']:,}")
+    print(f"  Compression:     {(1 - ingestor.stats['bytes_clean'] / max(ingestor.stats['bytes_raw'], 1)) * 100:.1f}%")
+    print(f"  Documents:       {stats['documents']}")
+    print(f"  Corpus bytes:    {stats['total_bytes']:,}")
+    print(f"  Unique bytes:    {stats['unique_bytes']}")
+    print(f"  Saved to:        {out}")
+    print(f"{'='*50}")
+
+
+def cmd_train(args):
+    """Train a MOTANAXY model."""
+    # Load corpus
+    corpus_path = Path(args.corpus)
+    if not corpus_path.exists():
+        logger.error("Corpus not found: %s", corpus_path)
+        logger.info("Run 'python -m motanaxy ingest' first to create a corpus.")
+        sys.exit(1)
+
+    corpus = corpus_path.read_text(encoding="utf-8")
+    stats = corpus_stats(corpus)
+    logger.info("Loaded corpus: %d documents, %d bytes", stats["documents"], stats["total_bytes"])
+
+    # Prepare data splits
+    train_data, val_data, test_data = prepare_data(
+        corpus, val_ratio=args.val_ratio, test_ratio=args.test_ratio,
+    )
+    logger.info("Splits — train: %d bytes, val: %d bytes, test: %d bytes",
+                len(train_data), len(val_data), len(test_data))
+
+    # Create model
+    if args.preset:
+        model = from_preset(args.preset)
+        logger.info("Model preset: %s", args.preset)
+    else:
+        model = MotanaxyModel(
+            width=args.width, context=args.context,
+            layers=args.layers, heads=args.heads,
+        )
+        logger.info("Custom model: width=%d ctx=%d layers=%d heads=%d",
+                     args.width, args.context, args.layers, args.heads)
+
+    logger.info("Parameters: %s", f"{model.num_parameters:,}")
+
+    # Training config
+    config = TrainingConfig(
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        max_steps=args.steps,
+        warmup_steps=args.warmup,
+        grad_accum_steps=args.grad_accum,
+        eval_interval=args.eval_interval,
+        save_interval=args.save_interval,
+        seed=args.seed,
+    )
+
+    # Output directory (auto-increment run number)
+    out_dir = Path(args.out)
+    if out_dir.exists() and not args.resume:
+        # Find next available run number
+        base = out_dir.parent
+        prefix = out_dir.name
+        i = 1
+        while (base / f"{prefix}_{i:03d}").exists():
+            i += 1
+        out_dir = base / f"{prefix}_{i:03d}"
+        logger.info("Output directory already exists, using: %s", out_dir)
+
+    # Train
+    trainer = Trainer(model, train_data, val_data, config, out_dir)
+
+    # Resume
+    if args.resume and (out_dir / "final_model.pt").exists():
+        ckpt = torch.load(out_dir / "final_model.pt", map_location="cpu", weights_only=True)
+        model.load_state_dict(ckpt["state"])
+        if "optimizer" in ckpt:
+            trainer.optimizer.load_state_dict(ckpt["optimizer"])
+        trainer.step = ckpt.get("step", 0)
+        logger.info("Resumed from step %d", trainer.step)
+
+    report = trainer.train()
+
+    # Save corpus stats alongside report
+    report["corpus_stats"] = stats
+    report["model_preset"] = args.preset
+    (out_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
+def cmd_generate(args):
+    """Generate text from a trained model."""
+    model = load_checkpoint(args.checkpoint)
+    logger.info("Loaded model: %s parameters", f"{model.num_parameters:,}")
+
+    prompt_bytes = list(args.prompt.encode("utf-8"))
+    result_bytes = model.generate(
+        prompt_bytes,
+        max_tokens=args.tokens,
+        temperature=args.temperature,
+        top_k=args.top_k,
+    )
+    output = bytes(result_bytes).decode("utf-8", errors="replace")
+    print(output)
+
+
+def cmd_info(args):
+    """Show information about a checkpoint."""
+    ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
+    config = ckpt["config"]
+    model = MotanaxyModel(**config)
+    model.load_state_dict(ckpt["state"])
+
+    print(f"\n{'='*50}")
+    print(f"  MOTANAXY Model Info")
+    print(f"{'='*50}")
+    print(f"  Width:       {config['width']}")
+    print(f"  Context:     {config['context']}")
+    print(f"  Layers:      {config['layers']}")
+    print(f"  Heads:       {config['heads']}")
+    print(f"  Parameters:  {model.num_parameters:,}")
+    print(f"  Size (est):  {model.num_parameters * 4 / 1024:.1f} KB (FP32)")
+    print(f"{'='*50}")
+
+    # Show report if available
+    report_path = Path(args.checkpoint).parent / "report.json"
+    if report_path.exists():
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        print(f"\n  Training Report:")
+        for k, v in report.items():
+            if k != "corpus_stats":
+                print(f"    {k}: {v}")
+
+
+def cmd_check(args):
+    """Self-check: verify model correctness."""
+    from .model import MotanaxyModel
+    import torch
+
+    print("Running MOTANAXY self-check...")
+
+    # 1) Causal mask test
+    model = MotanaxyModel(width=16, context=16, layers=1, heads=2).eval()
+    x = torch.randint(256, (2, 12))
+    other = x.clone()
+    other[:, 6:] = torch.randint(256, (2, 6))
+    assert torch.allclose(model(x)[:, :6], model(other)[:, :6], atol=1e-5), \
+        "FAIL: Future token leakage detected"
+    print("  [OK] Causal mask: no future leakage")
+
+    # 2) Learning test
+    model.train()
+    opt = torch.optim.AdamW(model.parameters(), lr=0.01)
+    target = (x + 1) % 256
+    first = torch.nn.functional.cross_entropy(
+        model(x).reshape(-1, 256), target.reshape(-1)
+    ).item()
+    for _ in range(30):
+        loss = torch.nn.functional.cross_entropy(
+            model(x).reshape(-1, 256), target.reshape(-1)
+        )
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    assert loss.item() < first / 2, "FAIL: Model did not learn"
+    print("  [OK] Gradient learning: loss decreased")
+
+    # 3) Save/load test
+    clone = MotanaxyModel(**model.config)
+    clone.load_state_dict(model.state_dict())
+    model.eval()
+    clone.eval()
+    assert torch.allclose(model(x), clone(x), atol=1e-5), \
+        "FAIL: State reload mismatch"
+    print("  [OK] State reload: weights preserved")
+
+    # 4) Generation test
+    ids = model.generate(list(b"def "), max_tokens=10, temperature=1.0)
+    assert len(ids) == 14  # 4 prompt + 10 generated
+    print("  [OK] Generation: produces valid output")
+
+    print("\nPASS: All MOTANAXY checks passed!")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="motanaxy",
+        description="MOTANAXY — Token-Efficient Code Training System",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    # --- ingest ---
+    p_ingest = sub.add_parser("ingest", help="Ingest files into training corpus")
+    p_ingest.add_argument("--sources", nargs="+", required=True,
+                          help="Files/directories to ingest")
+    p_ingest.add_argument("--out", default="corpus.txt",
+                          help="Output corpus file (default: corpus.txt)")
+    p_ingest.add_argument("--no-markitdown", action="store_true",
+                          help="Disable MarkItDown for non-text files")
+
+    # --- train ---
+    p_train = sub.add_parser("train", help="Train a model")
+    p_train.add_argument("--corpus", default="corpus.txt",
+                         help="Path to training corpus")
+    p_train.add_argument("--preset", choices=list(PRESETS), default=None,
+                         help="Model size preset")
+    p_train.add_argument("--width", type=int, default=64)
+    p_train.add_argument("--context", type=int, default=128)
+    p_train.add_argument("--layers", type=int, default=2)
+    p_train.add_argument("--heads", type=int, default=4)
+    p_train.add_argument("--steps", type=int, default=1000,
+                         help="Training steps (default: 1000)")
+    p_train.add_argument("--batch-size", type=int, default=8)
+    p_train.add_argument("--lr", type=float, default=3e-4,
+                         help="Peak learning rate")
+    p_train.add_argument("--warmup", type=int, default=50,
+                         help="Warmup steps")
+    p_train.add_argument("--grad-accum", type=int, default=1,
+                         help="Gradient accumulation steps")
+    p_train.add_argument("--eval-interval", type=int, default=100)
+    p_train.add_argument("--save-interval", type=int, default=200)
+    p_train.add_argument("--val-ratio", type=float, default=0.1)
+    p_train.add_argument("--test-ratio", type=float, default=0.05)
+    p_train.add_argument("--seed", type=int, default=42)
+    p_train.add_argument("--out", default="runs/mtn",
+                         help="Output directory (auto-increments)")
+    p_train.add_argument("--resume", action="store_true",
+                         help="Resume training from existing checkpoint")
+
+    # --- generate ---
+    p_gen = sub.add_parser("generate", help="Generate text from model")
+    p_gen.add_argument("--checkpoint", required=True,
+                       help="Path to model checkpoint")
+    p_gen.add_argument("--prompt", default="def ",
+                       help="Generation prompt")
+    p_gen.add_argument("--tokens", type=int, default=256,
+                       help="Max tokens to generate")
+    p_gen.add_argument("--temperature", type=float, default=0.7)
+    p_gen.add_argument("--top-k", type=int, default=40,
+                       help="Top-k sampling (0 = disabled)")
+
+    # --- info ---
+    p_info = sub.add_parser("info", help="Show checkpoint info")
+    p_info.add_argument("--checkpoint", required=True)
+
+    # --- check ---
+    sub.add_parser("check", help="Run self-checks")
+
+    args = parser.parse_args()
+    try:
+        {
+            "ingest": cmd_ingest,
+            "train": cmd_train,
+            "generate": cmd_generate,
+            "info": cmd_info,
+            "check": cmd_check,
+        }[args.command](args)
+    except (ValueError, OSError) as exc:
+        logger.error("Error: %s", exc)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
+
+"""MOTANAXY Data Ingestor — Token-efficient multi-format data pipeline.
+
+Converts any file format to clean, deduplicated training text using MarkItDown.
+Applies Ponytail principles: minimal processing, maximum reuse, zero bloat.
+"""
+
+import hashlib
+import logging
+import os
+import re
+from pathlib import Path
+from typing import Optional
+
+logger = logging.getLogger("motanaxy.ingestor")
+
+
+# ---------------------------------------------------------------------------
+# Ponytail Rule: Use standard library first. Only import MarkItDown when
+# the file type actually needs it (non-plaintext).
+# ---------------------------------------------------------------------------
+
+PLAINTEXT_EXTENSIONS = {
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".c", ".cpp", ".h",
+    ".hpp", ".java", ".kt", ".scala", ".rb", ".php", ".sh", ".bash", ".zsh",
+    ".ps1", ".bat", ".cmd", ".sql", ".r", ".m", ".swift", ".dart", ".lua",
+    ".pl", ".ex", ".exs", ".hs", ".ml", ".clj", ".v", ".sv", ".vhd",
+    ".txt", ".md", ".rst", ".csv", ".tsv", ".log", ".cfg", ".ini", ".toml",
+    ".yaml", ".yml", ".json", ".xml", ".html", ".css", ".scss", ".sass",
+    ".less", ".vue", ".svelte", ".astro", ".tf", ".hcl",
+    ".dockerfile", ".makefile", ".cmake", ".gradle", ".sbt",
+    ".gitignore", ".env", ".editorconfig",
+}
+
+MARKITDOWN_EXTENSIONS = {
+    ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+    ".rtf", ".odt", ".ods", ".odp", ".epub",
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
+    ".wav", ".mp3", ".flac", ".ogg", ".m4a",
+    ".zip", ".tar", ".gz",
+}
+
+SKIP_EXTENSIONS = {
+    ".pyc", ".pyo", ".class", ".o", ".obj", ".exe", ".dll", ".so",
+    ".dylib", ".whl", ".egg", ".lock", ".bin", ".dat", ".db",
+    ".sqlite", ".sqlite3", ".ico", ".svg", ".woff", ".woff2",
+    ".ttf", ".eot", ".map", ".min.js", ".min.css",
+}
+
+SKIP_DIRS = {
+    "__pycache__", ".git", ".svn", ".hg", ".venv", "venv", "env",
+    "node_modules", ".tox", ".mypy_cache", ".pytest_cache",
+    ".ruff_cache", "dist", "build", ".egg-info", ".eggs",
+    "target", "bin", "obj", ".idea", ".vscode", ".vs",
+    "runs",  # Don't ingest our own model outputs
+}
+
+# Max file size to ingest (Ponytail: don't burn resources on giant files)
+MAX_FILE_BYTES = 512 * 1024  # 512 KB
+
+
+class DataIngestor:
+    """Efficiently reads files from disk with minimal token waste.
+
+    Strategy:
+    1. Plaintext/code files → read directly (zero overhead)
+    2. Documents/media → MarkItDown converts to markdown
+    3. Deduplication by content hash (no repeated data in training)
+    4. Cleaning pipeline strips noise (blank lines, comments-only, etc.)
+    """
+
+    def __init__(self, use_markitdown: bool = True):
+        self._md = None
+        self._use_markitdown = use_markitdown
+        self._seen_hashes: set[str] = set()
+        self.stats = {
+            "files_scanned": 0,
+            "files_ingested": 0,
+            "files_skipped": 0,
+            "files_duplicate": 0,
+            "bytes_raw": 0,
+            "bytes_clean": 0,
+        }
+
+    @property
+    def md(self):
+        """Lazy-load MarkItDown only when needed (Ponytail: defer work)."""
+        if self._md is None and self._use_markitdown:
+            try:
+                from markitdown import MarkItDown
+                self._md = MarkItDown()
+                logger.info("MarkItDown loaded successfully")
+            except ImportError:
+                logger.warning(
+                    "markitdown not installed. "
+                    "Install with: pip install 'markitdown[all]'"
+                )
+                self._use_markitdown = False
+        return self._md
+
+    # ----- Core reading methods -----
+
+    def read_plaintext(self, path: Path) -> Optional[str]:
+        """Read a text file with minimal overhead."""
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+            return text
+        except (OSError, UnicodeDecodeError) as exc:
+            logger.debug("Skip %s: %s", path, exc)
+            return None
+
+    def read_with_markitdown(self, path: Path) -> Optional[str]:
+        """Convert a non-text file to markdown via MarkItDown."""
+        if not self.md:
+            return None
+        try:
+            result = self.md.convert(str(path))
+            return result.text_content
+        except Exception as exc:
+            logger.debug("MarkItDown failed on %s: %s", path, exc)
+            return None
+
+    # ----- Cleaning pipeline (Ponytail: strip noise, keep signal) -----
+
+    @staticmethod
+    def clean(text: str) -> str:
+        """Clean text for training: remove excessive whitespace and noise."""
+        # Normalize line endings
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        # Collapse 3+ blank lines to 2 (keep document separation)
+        text = re.sub(r"\n{4,}", "\n\n\n", text)
+        # Strip trailing whitespace per line
+        text = "\n".join(line.rstrip() for line in text.split("\n"))
+        # Strip leading/trailing whitespace of the whole document
+        text = text.strip()
+        return text
+
+    @staticmethod
+    def is_meaningful(text: str, min_bytes: int = 64) -> bool:
+        """Check if text has enough signal for training."""
+        if len(text.encode("utf-8")) < min_bytes:
+            return False
+        # Skip files that are almost entirely comments or blank
+        lines = [l for l in text.split("\n") if l.strip()]
+        code_lines = [l for l in lines if not l.strip().startswith("#")]
+        if len(lines) > 3 and len(code_lines) < len(lines) * 0.15:
+            return False
+        return True
+
+    # ----- Deduplication -----
+
+    def _content_hash(self, text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+    def _is_duplicate(self, text: str) -> bool:
+        h = self._content_hash(text)
+        if h in self._seen_hashes:
+            return True
+        self._seen_hashes.add(h)
+        return False
+
+    # ----- Main ingestion -----
+
+    def ingest_file(self, path: Path) -> Optional[str]:
+        """Ingest a single file and return cleaned text, or None."""
+        self.stats["files_scanned"] += 1
+
+        # Size guard
+        try:
+            size = path.stat().st_size
+        except OSError:
+            self.stats["files_skipped"] += 1
+            return None
+
+        if size > MAX_FILE_BYTES or size == 0:
+            self.stats["files_skipped"] += 1
+            return None
+
+        ext = path.suffix.lower()
+        name = path.name.lower()
+
+        # Skip binary/generated files
+        if ext in SKIP_EXTENSIONS:
+            self.stats["files_skipped"] += 1
+            return None
+
+        # Read content
+        if ext in PLAINTEXT_EXTENSIONS or name in {
+            "dockerfile", "makefile", "cmakelists.txt", "rakefile",
+            "gemfile", "procfile", "vagrantfile",
+        }:
+            raw = self.read_plaintext(path)
+        elif ext in MARKITDOWN_EXTENSIONS:
+            raw = self.read_with_markitdown(path)
+        else:
+            # Unknown extension: try plaintext first
+            raw = self.read_plaintext(path)
+
+        if raw is None:
+            self.stats["files_skipped"] += 1
+            return None
+
+        self.stats["bytes_raw"] += len(raw.encode("utf-8"))
+
+        # Clean
+        cleaned = self.clean(raw)
+
+        # Quality check
+        if not self.is_meaningful(cleaned):
+            self.stats["files_skipped"] += 1
+            return None
+
+        # Deduplicate
+        if self._is_duplicate(cleaned):
+            self.stats["files_duplicate"] += 1
+            return None
+
+        self.stats["files_ingested"] += 1
+        self.stats["bytes_clean"] += len(cleaned.encode("utf-8"))
+        return cleaned
+
+    def ingest_directory(self, root: Path, recursive: bool = True) -> list[str]:
+        """Walk a directory tree, ingest all eligible files."""
+        documents: list[str] = []
+        root = root.resolve()
+
+        if not root.is_dir():
+            logger.error("%s is not a directory", root)
+            return documents
+
+        walker = root.rglob("*") if recursive else root.glob("*")
+        for path in sorted(walker):
+            # Skip excluded directories
+            if any(part in SKIP_DIRS for part in path.parts):
+                continue
+            if not path.is_file():
+                continue
+            text = self.ingest_file(path)
+            if text:
+                documents.append(text)
+
+        return documents
+
+    def ingest_paths(self, paths: list[str]) -> list[str]:
+        """Ingest a list of files and/or directories."""
+        documents: list[str] = []
+        for p in paths:
+            path = Path(p).resolve()
+            if path.is_dir():
+                documents.extend(self.ingest_directory(path))
+            elif path.is_file():
+                text = self.ingest_file(path)
+                if text:
+                    documents.append(text)
+            else:
+                logger.warning("Path not found: %s", path)
+        return documents
+
+
+def build_corpus(documents: list[str], separator: str = "\n\n\n") -> str:
+    """Join documents into a single training corpus.
+
+    Uses triple-newline separator so the model learns document boundaries.
+    This matches code_ai.py's expected format.
+    """
+    return separator.join(documents)
+
+
+def corpus_stats(corpus: str) -> dict:
+    """Return summary statistics of a corpus."""
+    raw_bytes = corpus.encode("utf-8")
+    docs = [d for d in corpus.split("\n\n\n") if d.strip()]
+    return {
+        "documents": len(docs),
+        "total_bytes": len(raw_bytes),
+        "total_chars": len(corpus),
+        "unique_bytes": len(set(raw_bytes)),
+        "avg_doc_bytes": len(raw_bytes) // max(len(docs), 1),
+    }
+
+
+"""MOTANAXY Model — Optimized byte-level causal Transformer.
+
+Improvements over the original code_ai.py:
+- Configurable model sizes (nano / micro / small / medium)
+- Mixed-precision training support
+- Gradient accumulation for memory efficiency
+- Cosine learning rate schedule with warmup
+- Checkpointing with resume capability
+- Proper train/val/test split
+"""
+
+import math
+
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+
+# ---------------------------------------------------------------------------
+# Model Presets (Ponytail: one-liner config instead of scattered args)
+# ---------------------------------------------------------------------------
+
+PRESETS = {
+    "nano":   dict(width=64,  context=128,  layers=2,  heads=4),
+    "micro":  dict(width=128, context=256,  layers=4,  heads=4),
+    "small":  dict(width=256, context=512,  layers=6,  heads=8),
+    "medium": dict(width=512, context=1024, layers=8,  heads=8),
+}
+
+
+class CausalSelfAttention(nn.Module):
+    """Multi-head causal self-attention with pre-computed mask."""
+
+    def __init__(self, width: int, heads: int, context: int):
+        super().__init__()
+        assert width % heads == 0
+        self.heads = heads
+        self.head_dim = width // heads
+        self.qkv = nn.Linear(width, 3 * width)
+        self.proj = nn.Linear(width, width)
+        # Pre-register causal mask (Ponytail: compute once, reuse forever)
+        self.register_buffer(
+            "mask",
+            torch.ones(context, context, dtype=torch.bool).triu(1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, C = x.shape
+        q, k, v = self.qkv(x).split(C, dim=-1)
+        q = q.view(B, T, self.heads, self.head_dim).transpose(1, 2)
+        k = k.view(B, T, self.heads, self.head_dim).transpose(1, 2)
+        v = v.view(B, T, self.heads, self.head_dim).transpose(1, 2)
+
+        # Scaled dot-product with causal mask
+        att = (q @ k.transpose(-2, -1)) * (self.head_dim ** -0.5)
+        att = att.masked_fill(self.mask[:T, :T], float("-inf"))
+        att = att.softmax(dim=-1)
+
+        out = (att @ v).transpose(1, 2).contiguous().view(B, T, C)
+        return self.proj(out)
+
+
+class TransformerBlock(nn.Module):
+    """Pre-norm Transformer block (more stable training)."""
+
+    def __init__(self, width: int, heads: int, context: int):
+        super().__init__()
+        self.ln1 = nn.LayerNorm(width)
+        self.attn = CausalSelfAttention(width, heads, context)
+        self.ln2 = nn.LayerNorm(width)
+        self.mlp = nn.Sequential(
+            nn.Linear(width, width * 4),
+            nn.GELU(),
+            nn.Linear(width * 4, width),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.attn(self.ln1(x))
+        x = x + self.mlp(self.ln2(x))
+        return x
+
+
+class MotanaxyModel(nn.Module):
+    """Byte-level causal language model for code generation.
+
+    Architecture:
+    - Byte embedding (256 tokens) + learned positional embedding
+    - N × Pre-norm Transformer blocks
+    - Layer norm + linear head → next-byte logits
+    """
+
+    def __init__(self, width=64, context=128, layers=2, heads=4):
+        super().__init__()
+        self.config = dict(
+            width=width, context=context, layers=layers, heads=heads,
+        )
+        self.token_emb = nn.Embedding(256, width)
+        self.pos_emb = nn.Embedding(context, width)
+        self.blocks = nn.ModuleList([
+            TransformerBlock(width, heads, context)
+            for _ in range(layers)
+        ])
+        self.ln_final = nn.LayerNorm(width)
+        self.head = nn.Linear(width, 256, bias=False)
+
+        # Weight tying: share token embedding and output head
+        # (Ponytail: reuse weights, 30% fewer parameters)
+        self.head.weight = self.token_emb.weight
+
+        self._init_weights()
+
+    def _init_weights(self):
+        """GPT-style weight initialization."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    @property
+    def num_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T = x.shape
+        pos = torch.arange(T, device=x.device)
+        x = self.token_emb(x) + self.pos_emb(pos)
+        for block in self.blocks:
+            x = block(x)
+        x = self.ln_final(x)
+        return self.head(x)
+
+    @torch.no_grad()
+    def generate(
+        self,
+        prompt_bytes: list[int],
+        max_tokens: int = 256,
+        temperature: float = 0.7,
+        top_k: int = 40,
+    ) -> list[int]:
+        """Auto-regressive generation with top-k sampling."""
+        self.eval()
+        ids = list(prompt_bytes)
+        ctx = self.config["context"]
+
+        for _ in range(max_tokens):
+            x = torch.tensor([ids[-ctx:]])
+            logits = self(x)[0, -1] / temperature
+
+            # Top-k filtering (Ponytail: one-liner, no library needed)
+            if top_k > 0:
+                top_vals, _ = logits.topk(top_k)
+                logits[logits < top_vals[-1]] = float("-inf")
+
+            probs = logits.softmax(-1)
+            ids.append(torch.multinomial(probs, 1).item())
+
+        return ids
+
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+def from_preset(name: str) -> MotanaxyModel:
+    """Create a model from a named preset."""
+    if name not in PRESETS:
+        raise ValueError(f"Unknown preset '{name}'. Choose from: {list(PRESETS)}")
+    return MotanaxyModel(**PRESETS[name])
+
+
+def load_checkpoint(path: str, device: str = "cpu") -> MotanaxyModel:
+    """Load a saved MOTANAXY checkpoint."""
+    ckpt = torch.load(path, map_location=device, weights_only=True)
+    model = MotanaxyModel(**ckpt["config"])
+    model.load_state_dict(ckpt["state"])
+    return model
+
+
+# MOTANAXY — Token-Efficient Code Training System
+
+**Byte-level Transformer** สำหรับเทรน code generation model จากข้อมูลจริง
+ออกแบบตามหลัก **Ponytail** (เขียนน้อย ได้มาก) + **MarkItDown** (อ่านทุกรูปแบบไฟล์)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      MOTANAXY Pipeline                       │
+├──────────────┬───────────────┬──────────────┬───────────────┤
+│   Ingestor   │    Model      │   Trainer    │   Generator   │
+│              │               │              │               │
+│ • Scan dirs  │ • Byte-level  │ • Cosine LR  │ • Top-k       │
+│ • MarkItDown │ • Pre-norm    │ • Warmup     │ • Temperature │
+│ • Dedup      │ • Weight tie  │ • Grad accum │ • Streaming   │
+│ • Clean      │ • 4 presets   │ • AMP (GPU)  │               │
+│ • Filter     │               │ • Checkpoint │               │
+└──────────────┴───────────────┴──────────────┴───────────────┘
+```
+
+## 🚀 Quick Start
+
+### 1. ติดตั้ง Dependencies
+
+```bash
+pip install torch "markitdown[all]"
+```
+
+### 2. Ingest ข้อมูล (รวบรวมไฟล์เป็น corpus)
+
+```bash
+# Ingest จากหลาย source
+python -m motanaxy ingest --sources ./src ./docs ./examples --out corpus.txt
+
+# Ingest ไฟล์เดียว
+python -m motanaxy ingest --sources ./my_code.py --out corpus.txt
+
+# ไม่ใช้ MarkItDown (เฉพาะ plaintext)
+python -m motanaxy ingest --sources ./src --out corpus.txt --no-markitdown
+```
+
+### 3. Train Model
+
+```bash
+# ใช้ preset (แนะนำ)
+python -m motanaxy train --corpus corpus.txt --preset nano --steps 500
+
+# Custom config
+python -m motanaxy train --corpus corpus.txt --width 128 --context 256 --layers 4 --steps 1000
+
+# Resume training
+python -m motanaxy train --corpus corpus.txt --preset micro --steps 2000 --resume --out runs/mtn
+```
+
+### 4. Generate Code
+
+```bash
+python -m motanaxy generate --checkpoint runs/mtn/best_model.pt --prompt "def sort_list(" --tokens 200
+```
+
+### 5. ดูข้อมูล Model
+
+```bash
+python -m motanaxy info --checkpoint runs/mtn/best_model.pt
+```
+
+### 6. Self-Check
+
+```bash
+python -m motanaxy check
+```
+
+---
+
+## 📐 Model Presets
+
+| Preset   | Width | Context | Layers | Heads | ~Params  | Use Case              |
+|----------|-------|---------|--------|-------|----------|-----------------------|
+| `nano`   | 64    | 128     | 2      | 4     | ~100K    | ทดสอบ / เรียนรู้       |
+| `micro`  | 128   | 256     | 4      | 4     | ~800K    | ข้อมูลน้อย             |
+| `small`  | 256   | 512     | 6      | 8     | ~5M      | ข้อมูลปานกลาง          |
+| `medium` | 512   | 1024    | 8      | 8     | ~30M     | ข้อมูลมาก / GPU        |
+
+---
+
+## 🔧 Ponytail Principles Applied
+
+1. **Lazy Loading** — MarkItDown โหลดเมื่อเจอไฟล์ที่ต้องใช้เท่านั้น
+2. **No Duplicate Work** — Content hash deduplication
+3. **Reuse Weights** — Weight tying ลด parameters 30%
+4. **Standard Library First** — ใช้ `pathlib`, `hashlib`, `json` ก่อน library อื่น
+5. **One Config Object** — `TrainingConfig` รวมทุก hyperparameter ไว้ที่เดียว
+
+## 📁 Project Structure
+
+```
+motanaxy/
+├── __init__.py      # Package metadata
+├── __main__.py      # CLI entry point
+├── ingestor.py      # Multi-format data ingestion
+├── model.py         # Transformer architecture
+└── trainer.py       # Training loop & utilities
+```
+
+---
+
+## ⚡ Performance Tips
+
+- **CPU**: ใช้ `nano` หรือ `micro` preset, batch_size=4-8
+- **GPU**: ใช้ `small` หรือ `medium`, เปิด AMP อัตโนมัติ
+- **Memory จำกัด**: เพิ่ม `--grad-accum 4` เพื่อลด memory ต่อ step
+- **ข้อมูลน้อย**: ลด `--steps` เพิ่ม `--eval-interval` เพื่อจับ overfitting
+
+---
+
+*Built with ❤️ by MOTANAXY*
+
+
+"""MOTANAXY Trainer — Production-ready training loop.
+
+Features:
+- Cosine LR schedule with linear warmup
+- Gradient accumulation (train larger effective batches on limited memory)
+- Mixed-precision training (AMP) when GPU available
+- Periodic validation & checkpointing
+- Resume from checkpoint
+- Detailed metrics logging (JSON)
+"""
+
+import hashlib
+import json
+import logging
+import math
+import time
+from pathlib import Path
+
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+from .model import MotanaxyModel
+
+logger = logging.getLogger("motanaxy.trainer")
+
+
+class TrainingConfig:
+    """All training hyperparameters in one place."""
+
+    def __init__(
+        self,
+        # Data
+        batch_size: int = 8,
+        # Optimization
+        learning_rate: float = 3e-4,
+        weight_decay: float = 0.1,
+        warmup_steps: int = 50,
+        max_steps: int = 1000,
+        grad_clip: float = 1.0,
+        grad_accum_steps: int = 1,
+        # Schedule
+        lr_schedule: str = "cosine",  # "cosine" or "constant"
+        min_lr_ratio: float = 0.1,
+        # Validation & checkpointing
+        eval_interval: int = 100,
+        eval_batches: int = 8,
+        save_interval: int = 200,
+        # System
+        device: str = "auto",
+        use_amp: bool = True,
+        seed: int = 42,
+        num_threads: int = 2,
+    ):
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.warmup_steps = warmup_steps
+        self.max_steps = max_steps
+        self.grad_clip = grad_clip
+        self.grad_accum_steps = grad_accum_steps
+        self.lr_schedule = lr_schedule
+        self.min_lr_ratio = min_lr_ratio
+        self.eval_interval = eval_interval
+        self.eval_batches = eval_batches
+        self.save_interval = save_interval
+        self.device = device
+        self.use_amp = use_amp
+        self.seed = seed
+        self.num_threads = num_threads
+
+    def resolve_device(self) -> str:
+        if self.device != "auto":
+            return self.device
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
+
+
+class DataLoader:
+    """Minimal, memory-efficient data loader for byte sequences.
+
+    No external dependencies — just torch (Ponytail: standard lib first).
+    """
+
+    def __init__(self, data: torch.Tensor, context: int, batch_size: int, seed: int = 42):
+        self.data = data
+        self.context = context
+        self.batch_size = batch_size
+        self.generator = torch.Generator().manual_seed(seed)
+
+    def __len__(self) -> int:
+        return max(1, (len(self.data) - self.context) // self.batch_size)
+
+    def sample(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Sample a random batch of (input, target) pairs."""
+        starts = torch.randint(
+            len(self.data) - self.context - 1,
+            (self.batch_size,),
+            generator=self.generator,
+        )
+        tokens = torch.stack([self.data[i : i + self.context + 1] for i in starts])
+        return tokens[:, :-1], tokens[:, 1:]
+
+
+class Trainer:
+    """Handles the full training lifecycle."""
+
+    def __init__(
+        self,
+        model: MotanaxyModel,
+        train_data: torch.Tensor,
+        val_data: torch.Tensor,
+        config: TrainingConfig,
+        out_dir: str | Path,
+    ):
+        self.config = config
+        self.device = config.resolve_device()
+        self.out_dir = Path(out_dir)
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Model
+        self.model = model.to(self.device)
+        context = model.config["context"]
+
+        # Data loaders
+        self.train_loader = DataLoader(train_data, context, config.batch_size, config.seed)
+        self.val_loader = DataLoader(val_data, context, config.batch_size, config.seed + 1)
+
+        # Optimizer (Ponytail: AdamW with weight decay, no fancy lib)
+        self.optimizer = torch.optim.AdamW(
+            self.model.parameters(),
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay,
+            betas=(0.9, 0.95),
+        )
+
+        # AMP scaler (only for CUDA)
+        self.use_amp = config.use_amp and self.device == "cuda"
+        self.scaler = torch.amp.GradScaler("cuda") if self.use_amp else None
+        self.amp_dtype = torch.float16 if self.use_amp else torch.float32
+
+        # State
+        self.step = 0
+        self.best_val_loss = float("inf")
+        self.history: list[dict] = []
+
+    def get_lr(self) -> float:
+        """Cosine schedule with linear warmup."""
+        cfg = self.config
+        if cfg.lr_schedule == "constant":
+            return cfg.learning_rate
+
+        # Linear warmup
+        if self.step < cfg.warmup_steps:
+            return cfg.learning_rate * (self.step + 1) / cfg.warmup_steps
+
+        # Cosine decay
+        progress = (self.step - cfg.warmup_steps) / max(1, cfg.max_steps - cfg.warmup_steps)
+        progress = min(progress, 1.0)
+        min_lr = cfg.learning_rate * cfg.min_lr_ratio
+        return min_lr + 0.5 * (cfg.learning_rate - min_lr) * (1 + math.cos(math.pi * progress))
+
+    def _set_lr(self):
+        lr = self.get_lr()
+        for group in self.optimizer.param_groups:
+            group["lr"] = lr
+        return lr
+
+    @torch.no_grad()
+    def evaluate(self) -> float:
+        """Run validation and return average loss."""
+        self.model.eval()
+        losses = []
+        for _ in range(self.config.eval_batches):
+            x, y = self.val_loader.sample()
+            x, y = x.to(self.device), y.to(self.device)
+            with torch.amp.autocast(self.device, dtype=self.amp_dtype, enabled=self.use_amp):
+                logits = self.model(x)
+                loss = F.cross_entropy(logits.reshape(-1, 256), y.reshape(-1))
+            losses.append(loss.item())
+        return sum(losses) / len(losses)
+
+    def train_step(self) -> float:
+        """Execute one training step (with gradient accumulation)."""
+        self.model.train()
+        total_loss = 0.0
+
+        for micro_step in range(self.config.grad_accum_steps):
+            x, y = self.train_loader.sample()
+            x, y = x.to(self.device), y.to(self.device)
+
+            with torch.amp.autocast(self.device, dtype=self.amp_dtype, enabled=self.use_amp):
+                logits = self.model(x)
+                loss = F.cross_entropy(logits.reshape(-1, 256), y.reshape(-1))
+                loss = loss / self.config.grad_accum_steps
+
+            if self.scaler:
+                self.scaler.scale(loss).backward()
+            else:
+                loss.backward()
+
+            total_loss += loss.item()
+
+        # Gradient clipping
+        if self.scaler:
+            self.scaler.unscale_(self.optimizer)
+        nn.utils.clip_grad_norm_(self.model.parameters(), self.config.grad_clip)
+
+        # Step
+        if self.scaler:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        else:
+            self.optimizer.step()
+
+        self.optimizer.zero_grad(set_to_none=True)
+        return total_loss
+
+    def save_checkpoint(self, name: str = "checkpoint.pt"):
+        """Save model + optimizer + training state."""
+        path = self.out_dir / name
+        torch.save({
+            "config": self.model.config,
+            "state": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "step": self.step,
+            "best_val_loss": self.best_val_loss,
+        }, path)
+        logger.info("Saved checkpoint: %s (step %d)", path, self.step)
+
+    def save_metrics(self):
+        """Save training history as JSON."""
+        path = self.out_dir / "metrics.json"
+        path.write_text(json.dumps(self.history, indent=2), encoding="utf-8")
+
+    def train(self) -> dict:
+        """Full training loop. Returns final report."""
+        cfg = self.config
+        torch.set_num_threads(cfg.num_threads)
+        torch.manual_seed(cfg.seed)
+
+        logger.info("Device: %s | AMP: %s", self.device, self.use_amp)
+        logger.info("Parameters: %s", f"{self.model.num_parameters:,}")
+        logger.info("Train bytes: %d | Val bytes: %d",
+                     len(self.train_loader.data), len(self.val_loader.data))
+
+        initial_val_loss = self.evaluate()
+        logger.info("Initial val loss: %.4f", initial_val_loss)
+
+        started = time.perf_counter()
+
+        for self.step in range(1, cfg.max_steps + 1):
+            lr = self._set_lr()
+            train_loss = self.train_step()
+
+            # Logging
+            if self.step == 1 or self.step % 50 == 0 or self.step == cfg.max_steps:
+                print(
+                    f"step={self.step}/{cfg.max_steps}  "
+                    f"loss={train_loss:.4f}  lr={lr:.2e}",
+                    flush=True,
+                )
+
+            # Evaluation
+            if self.step % cfg.eval_interval == 0 or self.step == cfg.max_steps:
+                val_loss = self.evaluate()
+                record = {
+                    "step": self.step,
+                    "train_loss": round(train_loss, 4),
+                    "val_loss": round(val_loss, 4),
+                    "lr": round(lr, 6),
+                    "elapsed": round(time.perf_counter() - started, 1),
+                }
+                self.history.append(record)
+                print(f"  -> val_loss={val_loss:.4f}", flush=True)
+
+                if val_loss < self.best_val_loss:
+                    self.best_val_loss = val_loss
+                    self.save_checkpoint("best_model.pt")
+
+            # Periodic save
+            if self.step % cfg.save_interval == 0:
+                self.save_checkpoint(f"step_{self.step}.pt")
+
+        # Final save
+        elapsed = time.perf_counter() - started
+        self.save_checkpoint("final_model.pt")
+        self.save_metrics()
+
+        final_val_loss = self.evaluate()
+
+        report = {
+            "model_preset": None,
+            "parameters": self.model.num_parameters,
+            "steps": cfg.max_steps,
+            "batch_size": cfg.batch_size,
+            "grad_accum_steps": cfg.grad_accum_steps,
+            "effective_batch_size": cfg.batch_size * cfg.grad_accum_steps,
+            "learning_rate": cfg.learning_rate,
+            "device": self.device,
+            "use_amp": self.use_amp,
+            "torch_version": str(torch.__version__),
+            "train_bytes": len(self.train_loader.data),
+            "val_bytes": len(self.val_loader.data),
+            "initial_val_loss": round(initial_val_loss, 4),
+            "final_val_loss": round(final_val_loss, 4),
+            "best_val_loss": round(self.best_val_loss, 4),
+            "improvement": round(initial_val_loss - final_val_loss, 4),
+            "seconds": round(elapsed, 2),
+        }
+
+        report_path = self.out_dir / "report.json"
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print("\n" + json.dumps(report, indent=2))
+        return report
+
+
+def prepare_data(
+    corpus: str,
+    val_ratio: float = 0.1,
+    test_ratio: float = 0.05,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Split corpus into train/val/test tensors by document boundaries.
+
+    Documents are split by triple-newline, then allocated to each split.
+    This ensures no data leakage across splits.
+    """
+    docs = [d for d in corpus.split("\n\n\n") if d.strip()]
+    if len(docs) < 5:
+        raise ValueError(
+            f"Need at least 5 documents for train/val/test split, got {len(docs)}"
+        )
+
+    n = len(docs)
+    n_test = max(1, int(n * test_ratio))
+    n_val = max(1, int(n * val_ratio))
+    n_train = n - n_val - n_test
+
+    if n_train < 3:
+        raise ValueError(f"Not enough documents for training: {n_train}")
+
+    test_docs = docs[:n_test]
+    val_docs = docs[n_test : n_test + n_val]
+    train_docs = docs[n_test + n_val :]
+
+    def to_tensor(doc_list):
+        text = "\n\n".join(doc_list)
+        return torch.tensor(list(text.encode("utf-8")), dtype=torch.long)
+
+    return to_tensor(train_docs), to_tensor(val_docs), to_tensor(test_docs)

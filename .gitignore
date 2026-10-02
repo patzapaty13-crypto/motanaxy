@@ -1,0 +1,33 @@
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs and Runs
+runs/
+*.log
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Datasets & Zip files
+training_data/
+*.zip
+*.tar.gz
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+
+node_modules/
+frontend/node_modules/
+.next/
+build/
+dist/

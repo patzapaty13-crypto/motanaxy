@@ -1,0 +1,69 @@
+# Validation example: calculate a mean.
+def mean(values):
+    if not values:
+        raise ValueError("values must not be empty")
+    return sum(values) / len(values)
+
+
+# Validation example: return the larger value.
+def maximum(left, right):
+    if left > right:
+        return left
+    return right
+
+
+# Add two numbers.
+def add(left, right):
+    return left + right
+
+
+# Subtract two numbers.
+def subtract(left, right):
+    return left - right
+
+
+# Multiply two numbers.
+def multiply(left, right):
+    return left * right
+
+
+# Divide two numbers safely.
+def divide(left, right):
+    if right == 0:
+        raise ValueError("right must not be zero")
+    return left / right
+
+
+# Find even numbers.
+def evens(values):
+    return [value for value in values if value % 2 == 0]
+
+
+# Count characters in text.
+def count_characters(text):
+    counts = {}
+    for character in text:
+        counts[character] = counts.get(character, 0) + 1
+    return counts
+
+
+# Return a greeting.
+def greet(name):
+    return "Hello, " + name
+
+
+# Keep positive numbers.
+def positive(values):
+    return [value for value in values if value > 0]
+
+
+# Calculate the square of a number.
+def square(value):
+    return value * value
+
+
+# Find the smallest value.
+def minimum(left, right):
+    if left < right:
+        return left
+    return right

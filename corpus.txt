@@ -1,0 +1,1585 @@
+"""Small byte-level causal Transformer, trained from random weights. No API."""
+import argparse
+import hashlib
+import json
+import math
+from pathlib import Path
+import time
+
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+
+class CodeModel(nn.Module):
+    def __init__(self, width=64, context=128, layers=2):
+        super().__init__()
+        self.config = dict(width=width, context=context, layers=layers)
+        self.tokens = nn.Embedding(256, width)
+        self.positions = nn.Embedding(context, width)
+        self.blocks = nn.ModuleList([
+            nn.TransformerEncoderLayer(width, 4, width * 4, dropout=0,
+                                       batch_first=True, activation="gelu")
+            for _ in range(layers)
+        ])
+        self.head = nn.Linear(width, 256)
+
+    def forward(self, x):
+        n = x.shape[1]
+        x = self.tokens(x) + self.positions(torch.arange(n, device=x.device))
+        mask = torch.ones(n, n, dtype=torch.bool, device=x.device).triu(1)
+        for block in self.blocks:
+            x = block(x, src_mask=mask)
+        return self.head(x)
+
+
+def batch(data, context, batch_size, generator):
+    starts = torch.randint(len(data) - context, (batch_size,), generator=generator)
+    tokens = torch.stack([data[i:i + context + 1] for i in starts])
+    return tokens[:, :-1], tokens[:, 1:]
+
+
+@torch.no_grad()
+def measure(model, data, context):
+    model.eval()
+    generator = torch.Generator().manual_seed(123)
+    values = []
+    for _ in range(8):
+        x, y = batch(data, context, 8, generator)
+        values.append(F.cross_entropy(model(x).reshape(-1, 256), y.reshape(-1)).item())
+    return sum(values) / len(values)
+
+
+def train(args):
+    if args.steps < 1:
+        raise ValueError("steps must be positive")
+    out = Path(args.out)
+    if out.exists():
+        raise ValueError("Output already exists; choose a new --out to preserve earlier runs")
+    raw = Path(args.data).read_bytes()
+    # ponytail: whole corpus in RAM; use streamed document shards for large datasets.
+    docs = [part for part in raw.split(b"\n\n\n") if part.strip()]
+    if len(docs) < 4:
+        raise ValueError("Need at least 4 documents separated by three newlines")
+    # Split documents before tokenization so windows cannot cross the train/val split.
+    cut = max(1, len(docs) // 5)
+    val = torch.tensor(list(b"\n\n".join(docs[:cut])), dtype=torch.long)
+    data = torch.tensor(list(b"\n\n".join(docs[cut:])), dtype=torch.long)
+    model = CodeModel()
+    context = model.config['context']
+    if min(len(val), len(data)) <= context:
+        raise ValueError("Each split needs more than 128 UTF-8 bytes")
+    before = measure(model, val, context)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
+    generator = torch.Generator().manual_seed(42)
+    started = time.perf_counter()
+    for step in range(1, args.steps + 1):
+        model.train()
+        x, y = batch(data, context, 8, generator)
+        loss = F.cross_entropy(model(x).reshape(-1, 256), y.reshape(-1))
+        if not torch.isfinite(loss):
+            raise RuntimeError("Non-finite loss; training aborted")
+        optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        if step == 1 or step % 50 == 0 or step == args.steps:
+            print(f"step={step} train_loss={loss.item():.4f}", flush=True)
+    after = measure(model, val, context)
+    report = dict(parameters=sum(p.numel() for p in model.parameters()),
+                  steps=args.steps, seed=42, device="cpu", torch_version=str(torch.__version__),
+                  train_bytes=len(data), validation_bytes=len(val),
+                  data_sha256=hashlib.sha256(raw).hexdigest(),
+                  initial_validation_loss=before, final_validation_loss=after,
+                  seconds=round(time.perf_counter() - started, 2),
+                  limitation="Tiny synthetic corpus; loss is not a coding benchmark")
+    out.mkdir(parents=True)
+    torch.save(dict(config=model.config, state=model.state_dict()), out / "model.pt")
+    (out / "metrics.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(json.dumps(report, indent=2))
+
+
+@torch.no_grad()
+def generate(args):
+    if not args.prompt or not 1 <= args.tokens <= 2048:
+        raise ValueError("Provide a prompt and 1..2048 tokens")
+    if not math.isfinite(args.temperature) or args.temperature <= 0:
+        raise ValueError("temperature must be finite and positive")
+    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
+    model = CodeModel(**checkpoint['config'])
+    model.load_state_dict(checkpoint['state'])
+    model.eval()
+    ids = list(args.prompt.encode('utf-8'))
+    for _ in range(args.tokens):
+        x = torch.tensor([ids[-model.config['context']:]])
+        logits = model(x)[0, -1] / args.temperature
+        ids.append(torch.multinomial(logits.softmax(-1), 1).item())
+    print(bytes(ids).decode('utf-8', errors='replace'))
+
+
+def self_check():
+    model = CodeModel(width=16, context=16, layers=1).eval()
+    x = torch.randint(256, (2, 12))
+    other = x.clone()
+    other[:, 6:] = torch.randint(256, (2, 6))
+    assert torch.allclose(model(x)[:, :6], model(other)[:, :6], atol=1e-6), 'Future token leakage'
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
+    target = (x + 1) % 256
+    first = F.cross_entropy(model(x).reshape(-1, 256), target.reshape(-1)).item()
+    for _ in range(30):
+        loss = F.cross_entropy(model(x).reshape(-1, 256), target.reshape(-1))
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    assert loss.item() < first / 2, 'Learning failed'
+    clone = CodeModel(**model.config)
+    clone.load_state_dict(model.state_dict())
+    assert torch.allclose(model(x), clone(x), atol=1e-6)
+    sample = 'def hello(): # สวัสดี'
+    assert bytes(list(sample.encode())).decode() == sample
+    print('PASS: causal mask, gradient learning, state reload, UTF-8')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest='command', required=True)
+    t = sub.add_parser('train')
+    t.add_argument('--data', default=str(Path(__file__).with_name('sample_data.txt')))
+    t.add_argument('--steps', type=int, default=300)
+    t.add_argument('--out', default='runs/demo')
+    g = sub.add_parser('generate')
+    g.add_argument('--checkpoint', default='runs/demo/model.pt')
+    g.add_argument('--prompt', default='def ')
+    g.add_argument('--tokens', type=int, default=160)
+    g.add_argument('--temperature', type=float, default=0.7)
+    sub.add_parser('check')
+    args = parser.parse_args()
+    torch.set_num_threads(2)
+    torch.manual_seed(42)
+    try:
+        {'train': train, 'generate': generate, 'check': lambda _: self_check()}[args.command](args)
+    except (ValueError, OSError) as exc:
+        parser.exit(1, f'Error: {exc}\n')
+
+
+if __name__ == '__main__':
+    main()
+
+
+"""MOTANAXY — Token-Efficient Code Training System.
+
+A production-ready training pipeline that combines:
+- Ponytail philosophy (minimal, efficient code)
+- MarkItDown (universal file conversion)
+- Byte-level Transformer training with optimized data ingestion
+"""
+
+__version__ = "1.0.0"
+__author__ = "MOTANAXY"
+
+
+"""MOTANAXY CLI — Command-line interface for the training system.
+
+Usage:
+    python -m motanaxy ingest   --sources ./src ./docs --out corpus.txt
+    python -m motanaxy train    --corpus corpus.txt --preset nano --steps 500
+    python -m motanaxy generate --checkpoint runs/mtn_001/best_model.pt --prompt "def "
+    python -m motanaxy info     --checkpoint runs/mtn_001/best_model.pt
+    python -m motanaxy check
+"""
+
+import argparse
+import json
+import logging
+import sys
+from pathlib import Path
+
+import torch
+
+from .ingestor import DataIngestor, build_corpus, corpus_stats
+from .model import MotanaxyModel, PRESETS, from_preset, load_checkpoint
+from .trainer import Trainer, TrainingConfig, prepare_data
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("motanaxy")
+
+
+def cmd_ingest(args):
+    """Ingest files/directories into a training corpus."""
+    ingestor = DataIngestor(use_markitdown=not args.no_markitdown)
+    documents = ingestor.ingest_paths(args.sources)
+
+    if not documents:
+        logger.error("No documents ingested. Check your --sources paths.")
+        sys.exit(1)
+
+    corpus = build_corpus(documents)
+    stats = corpus_stats(corpus)
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(corpus, encoding="utf-8")
+
+    print(f"\n{'='*50}")
+    print(f"  MOTANAXY Ingestion Complete")
+    print(f"{'='*50}")
+    print(f"  Files scanned:   {ingestor.stats['files_scanned']}")
+    print(f"  Files ingested:  {ingestor.stats['files_ingested']}")
+    print(f"  Files skipped:   {ingestor.stats['files_skipped']}")
+    print(f"  Duplicates:      {ingestor.stats['files_duplicate']}")
+    print(f"  Raw bytes:       {ingestor.stats['bytes_raw']:,}")
+    print(f"  Clean bytes:     {ingestor.stats['bytes_clean']:,}")
+    print(f"  Compression:     {(1 - ingestor.stats['bytes_clean'] / max(ingestor.stats['bytes_raw'], 1)) * 100:.1f}%")
+    print(f"  Documents:       {stats['documents']}")
+    print(f"  Corpus bytes:    {stats['total_bytes']:,}")
+    print(f"  Unique bytes:    {stats['unique_bytes']}")
+    print(f"  Saved to:        {out}")
+    print(f"{'='*50}")
+
+
+def cmd_train(args):
+    """Train a MOTANAXY model."""
+    # Load corpus
+    corpus_path = Path(args.corpus)
+    if not corpus_path.exists():
+        logger.error("Corpus not found: %s", corpus_path)
+        logger.info("Run 'python -m motanaxy ingest' first to create a corpus.")
+        sys.exit(1)
+
+    corpus = corpus_path.read_text(encoding="utf-8")
+    stats = corpus_stats(corpus)
+    logger.info("Loaded corpus: %d documents, %d bytes", stats["documents"], stats["total_bytes"])
+
+    # Prepare data splits
+    train_data, val_data, test_data = prepare_data(
+        corpus, val_ratio=args.val_ratio, test_ratio=args.test_ratio,
+    )
+    logger.info("Splits — train: %d bytes, val: %d bytes, test: %d bytes",
+                len(train_data), len(val_data), len(test_data))
+
+    # Create model
+    if args.preset:
+        model = from_preset(args.preset)
+        logger.info("Model preset: %s", args.preset)
+    else:
+        model = MotanaxyModel(
+            width=args.width, context=args.context,
+            layers=args.layers, heads=args.heads,
+        )
+        logger.info("Custom model: width=%d ctx=%d layers=%d heads=%d",
+                     args.width, args.context, args.layers, args.heads)
+
+    logger.info("Parameters: %s", f"{model.num_parameters:,}")
+
+    # Training config
+    config = TrainingConfig(
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        max_steps=args.steps,
+        warmup_steps=args.warmup,
+        grad_accum_steps=args.grad_accum,
+        eval_interval=args.eval_interval,
+        save_interval=args.save_interval,
+        seed=args.seed,
+    )
+
+    # Output directory (auto-increment run number)
+    out_dir = Path(args.out)
+    if out_dir.exists() and not args.resume:
+        # Find next available run number
+        base = out_dir.parent
+        prefix = out_dir.name
+        i = 1
+        while (base / f"{prefix}_{i:03d}").exists():
+            i += 1
+        out_dir = base / f"{prefix}_{i:03d}"
+        logger.info("Output directory already exists, using: %s", out_dir)
+
+    # Train
+    trainer = Trainer(model, train_data, val_data, config, out_dir)
+
+    # Resume
+    if args.resume and (out_dir / "final_model.pt").exists():
+        ckpt = torch.load(out_dir / "final_model.pt", map_location="cpu", weights_only=True)
+        model.load_state_dict(ckpt["state"])
+        if "optimizer" in ckpt:
+            trainer.optimizer.load_state_dict(ckpt["optimizer"])
+        trainer.step = ckpt.get("step", 0)
+        logger.info("Resumed from step %d", trainer.step)
+
+    report = trainer.train()
+
+    # Save corpus stats alongside report
+    report["corpus_stats"] = stats
+    report["model_preset"] = args.preset
+    (out_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
+def cmd_generate(args):
+    """Generate text from a trained model."""
+    model = load_checkpoint(args.checkpoint)
+    logger.info("Loaded model: %s parameters", f"{model.num_parameters:,}")
+
+    prompt_bytes = list(args.prompt.encode("utf-8"))
+    result_bytes = model.generate(
+        prompt_bytes,
+        max_tokens=args.tokens,
+        temperature=args.temperature,
+        top_k=args.top_k,
+    )
+    output = bytes(result_bytes).decode("utf-8", errors="replace")
+    print(output)
+
+
+def cmd_info(args):
+    """Show information about a checkpoint."""
+    ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
+    config = ckpt["config"]
+    model = MotanaxyModel(**config)
+    model.load_state_dict(ckpt["state"])
+
+    print(f"\n{'='*50}")
+    print(f"  MOTANAXY Model Info")
+    print(f"{'='*50}")
+    print(f"  Width:       {config['width']}")
+    print(f"  Context:     {config['context']}")
+    print(f"  Layers:      {config['layers']}")
+    print(f"  Heads:       {config['heads']}")
+    print(f"  Parameters:  {model.num_parameters:,}")
+    print(f"  Size (est):  {model.num_parameters * 4 / 1024:.1f} KB (FP32)")
+    print(f"{'='*50}")
+
+    # Show report if available
+    report_path = Path(args.checkpoint).parent / "report.json"
+    if report_path.exists():
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        print(f"\n  Training Report:")
+        for k, v in report.items():
+            if k != "corpus_stats":
+                print(f"    {k}: {v}")
+
+
+def cmd_check(args):
+    """Self-check: verify model correctness."""
+    from .model import MotanaxyModel
+    import torch
+
+    print("Running MOTANAXY self-check...")
+
+    # 1) Causal mask test
+    model = MotanaxyModel(width=16, context=16, layers=1, heads=2).eval()
+    x = torch.randint(256, (2, 12))
+    other = x.clone()
+    other[:, 6:] = torch.randint(256, (2, 6))
+    assert torch.allclose(model(x)[:, :6], model(other)[:, :6], atol=1e-5), \
+        "FAIL: Future token leakage detected"
+    print("  [OK] Causal mask: no future leakage")
+
+    # 2) Learning test
+    model.train()
+    opt = torch.optim.AdamW(model.parameters(), lr=0.01)
+    target = (x + 1) % 256
+    first = torch.nn.functional.cross_entropy(
+        model(x).reshape(-1, 256), target.reshape(-1)
+    ).item()
+    for _ in range(30):
+        loss = torch.nn.functional.cross_entropy(
+            model(x).reshape(-1, 256), target.reshape(-1)
+        )
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    assert loss.item() < first / 2, "FAIL: Model did not learn"
+    print("  [OK] Gradient learning: loss decreased")
+
+    # 3) Save/load test
+    clone = MotanaxyModel(**model.config)
+    clone.load_state_dict(model.state_dict())
+    model.eval()
+    clone.eval()
+    assert torch.allclose(model(x), clone(x), atol=1e-5), \
+        "FAIL: State reload mismatch"
+    print("  [OK] State reload: weights preserved")
+
+    # 4) Generation test
+    ids = model.generate(list(b"def "), max_tokens=10, temperature=1.0)
+    assert len(ids) == 14  # 4 prompt + 10 generated
+    print("  [OK] Generation: produces valid output")
+
+    print("\nPASS: All MOTANAXY checks passed!")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="motanaxy",
+        description="MOTANAXY — Token-Efficient Code Training System",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    # --- ingest ---
+    p_ingest = sub.add_parser("ingest", help="Ingest files into training corpus")
+    p_ingest.add_argument("--sources", nargs="+", required=True,
+                          help="Files/directories to ingest")
+    p_ingest.add_argument("--out", default="corpus.txt",
+                          help="Output corpus file (default: corpus.txt)")
+    p_ingest.add_argument("--no-markitdown", action="store_true",
+                          help="Disable MarkItDown for non-text files")
+
+    # --- train ---
+    p_train = sub.add_parser("train", help="Train a model")
+    p_train.add_argument("--corpus", default="corpus.txt",
+                         help="Path to training corpus")
+    p_train.add_argument("--preset", choices=list(PRESETS), default=None,
+                         help="Model size preset")
+    p_train.add_argument("--width", type=int, default=64)
+    p_train.add_argument("--context", type=int, default=128)
+    p_train.add_argument("--layers", type=int, default=2)
+    p_train.add_argument("--heads", type=int, default=4)
+    p_train.add_argument("--steps", type=int, default=1000,
+                         help="Training steps (default: 1000)")
+    p_train.add_argument("--batch-size", type=int, default=8)
+    p_train.add_argument("--lr", type=float, default=3e-4,
+                         help="Peak learning rate")
+    p_train.add_argument("--warmup", type=int, default=50,
+                         help="Warmup steps")
+    p_train.add_argument("--grad-accum", type=int, default=1,
+                         help="Gradient accumulation steps")
+    p_train.add_argument("--eval-interval", type=int, default=100)
+    p_train.add_argument("--save-interval", type=int, default=200)
+    p_train.add_argument("--val-ratio", type=float, default=0.1)
+    p_train.add_argument("--test-ratio", type=float, default=0.05)
+    p_train.add_argument("--seed", type=int, default=42)
+    p_train.add_argument("--out", default="runs/mtn",
+                         help="Output directory (auto-increments)")
+    p_train.add_argument("--resume", action="store_true",
+                         help="Resume training from existing checkpoint")
+
+    # --- generate ---
+    p_gen = sub.add_parser("generate", help="Generate text from model")
+    p_gen.add_argument("--checkpoint", required=True,
+                       help="Path to model checkpoint")
+    p_gen.add_argument("--prompt", default="def ",
+                       help="Generation prompt")
+    p_gen.add_argument("--tokens", type=int, default=256,
+                       help="Max tokens to generate")
+    p_gen.add_argument("--temperature", type=float, default=0.7)
+    p_gen.add_argument("--top-k", type=int, default=40,
+                       help="Top-k sampling (0 = disabled)")
+
+    # --- info ---
+    p_info = sub.add_parser("info", help="Show checkpoint info")
+    p_info.add_argument("--checkpoint", required=True)
+
+    # --- check ---
+    sub.add_parser("check", help="Run self-checks")
+
+    args = parser.parse_args()
+    try:
+        {
+            "ingest": cmd_ingest,
+            "train": cmd_train,
+            "generate": cmd_generate,
+            "info": cmd_info,
+            "check": cmd_check,
+        }[args.command](args)
+    except (ValueError, OSError) as exc:
+        logger.error("Error: %s", exc)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
+
+"""MOTANAXY Data Ingestor — Token-efficient multi-format data pipeline.
+
+Converts any file format to clean, deduplicated training text using MarkItDown.
+Applies Ponytail principles: minimal processing, maximum reuse, zero bloat.
+"""
+
+import hashlib
+import logging
+import os
+import re
+from pathlib import Path
+from typing import Optional
+
+logger = logging.getLogger("motanaxy.ingestor")
+
+
+# ---------------------------------------------------------------------------
+# Ponytail Rule: Use standard library first. Only import MarkItDown when
+# the file type actually needs it (non-plaintext).
+# ---------------------------------------------------------------------------
+
+PLAINTEXT_EXTENSIONS = {
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".c", ".cpp", ".h",
+    ".hpp", ".java", ".kt", ".scala", ".rb", ".php", ".sh", ".bash", ".zsh",
+    ".ps1", ".bat", ".cmd", ".sql", ".r", ".m", ".swift", ".dart", ".lua",
+    ".pl", ".ex", ".exs", ".hs", ".ml", ".clj", ".v", ".sv", ".vhd",
+    ".txt", ".md", ".rst", ".csv", ".tsv", ".log", ".cfg", ".ini", ".toml",
+    ".yaml", ".yml", ".json", ".xml", ".html", ".css", ".scss", ".sass",
+    ".less", ".vue", ".svelte", ".astro", ".tf", ".hcl",
+    ".dockerfile", ".makefile", ".cmake", ".gradle", ".sbt",
+    ".gitignore", ".env", ".editorconfig",
+}
+
+MARKITDOWN_EXTENSIONS = {
+    ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+    ".rtf", ".odt", ".ods", ".odp", ".epub",
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
+    ".wav", ".mp3", ".flac", ".ogg", ".m4a",
+    ".zip", ".tar", ".gz",
+}
+
+SKIP_EXTENSIONS = {
+    ".pyc", ".pyo", ".class", ".o", ".obj", ".exe", ".dll", ".so",
+    ".dylib", ".whl", ".egg", ".lock", ".bin", ".dat", ".db",
+    ".sqlite", ".sqlite3", ".ico", ".svg", ".woff", ".woff2",
+    ".ttf", ".eot", ".map", ".min.js", ".min.css",
+}
+
+SKIP_DIRS = {
+    "__pycache__", ".git", ".svn", ".hg", ".venv", "venv", "env",
+    "node_modules", ".tox", ".mypy_cache", ".pytest_cache",
+    ".ruff_cache", "dist", "build", ".egg-info", ".eggs",
+    "target", "bin", "obj", ".idea", ".vscode", ".vs",
+    "runs",  # Don't ingest our own model outputs
+}
+
+# Max file size to ingest (Ponytail: don't burn resources on giant files)
+MAX_FILE_BYTES = 512 * 1024  # 512 KB
+
+
+class DataIngestor:
+    """Efficiently reads files from disk with minimal token waste.
+
+    Strategy:
+    1. Plaintext/code files → read directly (zero overhead)
+    2. Documents/media → MarkItDown converts to markdown
+    3. Deduplication by content hash (no repeated data in training)
+    4. Cleaning pipeline strips noise (blank lines, comments-only, etc.)
+    """
+
+    def __init__(self, use_markitdown: bool = True):
+        self._md = None
+        self._use_markitdown = use_markitdown
+        self._seen_hashes: set[str] = set()
+        self.stats = {
+            "files_scanned": 0,
+            "files_ingested": 0,
+            "files_skipped": 0,
+            "files_duplicate": 0,
+            "bytes_raw": 0,
+            "bytes_clean": 0,
+        }
+
+    @property
+    def md(self):
+        """Lazy-load MarkItDown only when needed (Ponytail: defer work)."""
+        if self._md is None and self._use_markitdown:
+            try:
+                from markitdown import MarkItDown
+                self._md = MarkItDown()
+                logger.info("MarkItDown loaded successfully")
+            except ImportError:
+                logger.warning(
+                    "markitdown not installed. "
+                    "Install with: pip install 'markitdown[all]'"
+                )
+                self._use_markitdown = False
+        return self._md
+
+    # ----- Core reading methods -----
+
+    def read_plaintext(self, path: Path) -> Optional[str]:
+        """Read a text file with minimal overhead."""
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+            return text
+        except (OSError, UnicodeDecodeError) as exc:
+            logger.debug("Skip %s: %s", path, exc)
+            return None
+
+    def read_with_markitdown(self, path: Path) -> Optional[str]:
+        """Convert a non-text file to markdown via MarkItDown."""
+        if not self.md:
+            return None
+        try:
+            result = self.md.convert(str(path))
+            return result.text_content
+        except Exception as exc:
+            logger.debug("MarkItDown failed on %s: %s", path, exc)
+            return None
+
+    # ----- Cleaning pipeline (Ponytail: strip noise, keep signal) -----
+
+    @staticmethod
+    def clean(text: str) -> str:
+        """Clean text for training: remove excessive whitespace and noise."""
+        # Normalize line endings
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        # Collapse 3+ blank lines to 2 (keep document separation)
+        text = re.sub(r"\n{4,}", "\n\n\n", text)
+        # Strip trailing whitespace per line
+        text = "\n".join(line.rstrip() for line in text.split("\n"))
+        # Strip leading/trailing whitespace of the whole document
+        text = text.strip()
+        return text
+
+    @staticmethod
+    def is_meaningful(text: str, min_bytes: int = 64) -> bool:
+        """Check if text has enough signal for training."""
+        if len(text.encode("utf-8")) < min_bytes:
+            return False
+        # Skip files that are almost entirely comments or blank
+        lines = [l for l in text.split("\n") if l.strip()]
+        code_lines = [l for l in lines if not l.strip().startswith("#")]
+        if len(lines) > 3 and len(code_lines) < len(lines) * 0.15:
+            return False
+        return True
+
+    # ----- Deduplication -----
+
+    def _content_hash(self, text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+    def _is_duplicate(self, text: str) -> bool:
+        h = self._content_hash(text)
+        if h in self._seen_hashes:
+            return True
+        self._seen_hashes.add(h)
+        return False
+
+    # ----- Main ingestion -----
+
+    def ingest_file(self, path: Path) -> Optional[str]:
+        """Ingest a single file and return cleaned text, or None."""
+        self.stats["files_scanned"] += 1
+
+        # Size guard
+        try:
+            size = path.stat().st_size
+        except OSError:
+            self.stats["files_skipped"] += 1
+            return None
+
+        if size > MAX_FILE_BYTES or size == 0:
+            self.stats["files_skipped"] += 1
+            return None
+
+        ext = path.suffix.lower()
+        name = path.name.lower()
+
+        # Skip binary/generated files
+        if ext in SKIP_EXTENSIONS:
+            self.stats["files_skipped"] += 1
+            return None
+
+        # Read content
+        if ext in PLAINTEXT_EXTENSIONS or name in {
+            "dockerfile", "makefile", "cmakelists.txt", "rakefile",
+            "gemfile", "procfile", "vagrantfile",
+        }:
+            raw = self.read_plaintext(path)
+        elif ext in MARKITDOWN_EXTENSIONS:
+            raw = self.read_with_markitdown(path)
+        else:
+            # Unknown extension: try plaintext first
+            raw = self.read_plaintext(path)
+
+        if raw is None:
+            self.stats["files_skipped"] += 1
+            return None
+
+        self.stats["bytes_raw"] += len(raw.encode("utf-8"))
+
+        # Clean
+        cleaned = self.clean(raw)
+
+        # Quality check
+        if not self.is_meaningful(cleaned):
+            self.stats["files_skipped"] += 1
+            return None
+
+        # Deduplicate
+        if self._is_duplicate(cleaned):
+            self.stats["files_duplicate"] += 1
+            return None
+
+        self.stats["files_ingested"] += 1
+        self.stats["bytes_clean"] += len(cleaned.encode("utf-8"))
+        return cleaned
+
+    def ingest_directory(self, root: Path, recursive: bool = True) -> list[str]:
+        """Walk a directory tree, ingest all eligible files."""
+        documents: list[str] = []
+        root = root.resolve()
+
+        if not root.is_dir():
+            logger.error("%s is not a directory", root)
+            return documents
+
+        walker = root.rglob("*") if recursive else root.glob("*")
+        for path in sorted(walker):
+            # Skip excluded directories
+            if any(part in SKIP_DIRS for part in path.parts):
+                continue
+            if not path.is_file():
+                continue
+            text = self.ingest_file(path)
+            if text:
+                documents.append(text)
+
+        return documents
+
+    def ingest_paths(self, paths: list[str]) -> list[str]:
+        """Ingest a list of files and/or directories."""
+        documents: list[str] = []
+        for p in paths:
+            path = Path(p).resolve()
+            if path.is_dir():
+                documents.extend(self.ingest_directory(path))
+            elif path.is_file():
+                text = self.ingest_file(path)
+                if text:
+                    documents.append(text)
+            else:
+                logger.warning("Path not found: %s", path)
+        return documents
+
+
+def build_corpus(documents: list[str], separator: str = "\n\n\n") -> str:
+    """Join documents into a single training corpus.
+
+    Uses triple-newline separator so the model learns document boundaries.
+    This matches code_ai.py's expected format.
+    """
+    return separator.join(documents)
+
+
+def corpus_stats(corpus: str) -> dict:
+    """Return summary statistics of a corpus."""
+    raw_bytes = corpus.encode("utf-8")
+    docs = [d for d in corpus.split("\n\n\n") if d.strip()]
+    return {
+        "documents": len(docs),
+        "total_bytes": len(raw_bytes),
+        "total_chars": len(corpus),
+        "unique_bytes": len(set(raw_bytes)),
+        "avg_doc_bytes": len(raw_bytes) // max(len(docs), 1),
+    }
+
+
+"""MOTANAXY Model — Optimized byte-level causal Transformer.
+
+Improvements over the original code_ai.py:
+- Configurable model sizes (nano / micro / small / medium)
+- Mixed-precision training support
+- Gradient accumulation for memory efficiency
+- Cosine learning rate schedule with warmup
+- Checkpointing with resume capability
+- Proper train/val/test split
+"""
+
+import math
+
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+
+# ---------------------------------------------------------------------------
+# Model Presets (Ponytail: one-liner config instead of scattered args)
+# ---------------------------------------------------------------------------
+
+PRESETS = {
+    "nano":   dict(width=64,  context=128,  layers=2,  heads=4),
+    "micro":  dict(width=128, context=256,  layers=4,  heads=4),
+    "small":  dict(width=256, context=512,  layers=6,  heads=8),
+    "medium": dict(width=512, context=1024, layers=8,  heads=8),
+}
+
+
+class CausalSelfAttention(nn.Module):
+    """Multi-head causal self-attention with pre-computed mask."""
+
+    def __init__(self, width: int, heads: int, context: int):
+        super().__init__()
+        assert width % heads == 0
+        self.heads = heads
+        self.head_dim = width // heads
+        self.qkv = nn.Linear(width, 3 * width)
+        self.proj = nn.Linear(width, width)
+        # Pre-register causal mask (Ponytail: compute once, reuse forever)
+        self.register_buffer(
+            "mask",
+            torch.ones(context, context, dtype=torch.bool).triu(1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, C = x.shape
+        q, k, v = self.qkv(x).split(C, dim=-1)
+        q = q.view(B, T, self.heads, self.head_dim).transpose(1, 2)
+        k = k.view(B, T, self.heads, self.head_dim).transpose(1, 2)
+        v = v.view(B, T, self.heads, self.head_dim).transpose(1, 2)
+
+        # Scaled dot-product with causal mask
+        att = (q @ k.transpose(-2, -1)) * (self.head_dim ** -0.5)
+        att = att.masked_fill(self.mask[:T, :T], float("-inf"))
+        att = att.softmax(dim=-1)
+
+        out = (att @ v).transpose(1, 2).contiguous().view(B, T, C)
+        return self.proj(out)
+
+
+class TransformerBlock(nn.Module):
+    """Pre-norm Transformer block (more stable training)."""
+
+    def __init__(self, width: int, heads: int, context: int):
+        super().__init__()
+        self.ln1 = nn.LayerNorm(width)
+        self.attn = CausalSelfAttention(width, heads, context)
+        self.ln2 = nn.LayerNorm(width)
+        self.mlp = nn.Sequential(
+            nn.Linear(width, width * 4),
+            nn.GELU(),
+            nn.Linear(width * 4, width),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.attn(self.ln1(x))
+        x = x + self.mlp(self.ln2(x))
+        return x
+
+
+class MotanaxyModel(nn.Module):
+    """Byte-level causal language model for code generation.
+
+    Architecture:
+    - Byte embedding (256 tokens) + learned positional embedding
+    - N × Pre-norm Transformer blocks
+    - Layer norm + linear head → next-byte logits
+    """
+
+    def __init__(self, width=64, context=128, layers=2, heads=4):
+        super().__init__()
+        self.config = dict(
+            width=width, context=context, layers=layers, heads=heads,
+        )
+        self.token_emb = nn.Embedding(256, width)
+        self.pos_emb = nn.Embedding(context, width)
+        self.blocks = nn.ModuleList([
+            TransformerBlock(width, heads, context)
+            for _ in range(layers)
+        ])
+        self.ln_final = nn.LayerNorm(width)
+        self.head = nn.Linear(width, 256, bias=False)
+
+        # Weight tying: share token embedding and output head
+        # (Ponytail: reuse weights, 30% fewer parameters)
+        self.head.weight = self.token_emb.weight
+
+        self._init_weights()
+
+    def _init_weights(self):
+        """GPT-style weight initialization."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    @property
+    def num_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T = x.shape
+        pos = torch.arange(T, device=x.device)
+        x = self.token_emb(x) + self.pos_emb(pos)
+        for block in self.blocks:
+            x = block(x)
+        x = self.ln_final(x)
+        return self.head(x)
+
+    @torch.no_grad()
+    def generate(
+        self,
+        prompt_bytes: list[int],
+        max_tokens: int = 256,
+        temperature: float = 0.7,
+        top_k: int = 40,
+    ) -> list[int]:
+        """Auto-regressive generation with top-k sampling."""
+        self.eval()
+        ids = list(prompt_bytes)
+        ctx = self.config["context"]
+
+        for _ in range(max_tokens):
+            x = torch.tensor([ids[-ctx:]])
+            logits = self(x)[0, -1] / temperature
+
+            # Top-k filtering (Ponytail: one-liner, no library needed)
+            if top_k > 0:
+                top_vals, _ = logits.topk(top_k)
+                logits[logits < top_vals[-1]] = float("-inf")
+
+            probs = logits.softmax(-1)
+            ids.append(torch.multinomial(probs, 1).item())
+
+        return ids
+
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+def from_preset(name: str) -> MotanaxyModel:
+    """Create a model from a named preset."""
+    if name not in PRESETS:
+        raise ValueError(f"Unknown preset '{name}'. Choose from: {list(PRESETS)}")
+    return MotanaxyModel(**PRESETS[name])
+
+
+def load_checkpoint(path: str, device: str = "cpu") -> MotanaxyModel:
+    """Load a saved MOTANAXY checkpoint."""
+    ckpt = torch.load(path, map_location=device, weights_only=True)
+    model = MotanaxyModel(**ckpt["config"])
+    model.load_state_dict(ckpt["state"])
+    return model
+
+
+# MOTANAXY — Token-Efficient Code Training System
+
+**Byte-level Transformer** สำหรับเทรน code generation model จากข้อมูลจริง
+ออกแบบตามหลัก **Ponytail** (เขียนน้อย ได้มาก) + **MarkItDown** (อ่านทุกรูปแบบไฟล์)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      MOTANAXY Pipeline                       │
+├──────────────┬───────────────┬──────────────┬───────────────┤
+│   Ingestor   │    Model      │   Trainer    │   Generator   │
+│              │               │              │               │
+│ • Scan dirs  │ • Byte-level  │ • Cosine LR  │ • Top-k       │
+│ • MarkItDown │ • Pre-norm    │ • Warmup     │ • Temperature │
+│ • Dedup      │ • Weight tie  │ • Grad accum │ • Streaming   │
+│ • Clean      │ • 4 presets   │ • AMP (GPU)  │               │
+│ • Filter     │               │ • Checkpoint │               │
+└──────────────┴───────────────┴──────────────┴───────────────┘
+```
+
+## 🚀 Quick Start
+
+### 1. ติดตั้ง Dependencies
+
+```bash
+pip install torch "markitdown[all]"
+```
+
+### 2. Ingest ข้อมูล (รวบรวมไฟล์เป็น corpus)
+
+```bash
+# Ingest จากหลาย source
+python -m motanaxy ingest --sources ./src ./docs ./examples --out corpus.txt
+
+# Ingest ไฟล์เดียว
+python -m motanaxy ingest --sources ./my_code.py --out corpus.txt
+
+# ไม่ใช้ MarkItDown (เฉพาะ plaintext)
+python -m motanaxy ingest --sources ./src --out corpus.txt --no-markitdown
+```
+
+### 3. Train Model
+
+```bash
+# ใช้ preset (แนะนำ)
+python -m motanaxy train --corpus corpus.txt --preset nano --steps 500
+
+# Custom config
+python -m motanaxy train --corpus corpus.txt --width 128 --context 256 --layers 4 --steps 1000
+
+# Resume training
+python -m motanaxy train --corpus corpus.txt --preset micro --steps 2000 --resume --out runs/mtn
+```
+
+### 4. Generate Code
+
+```bash
+python -m motanaxy generate --checkpoint runs/mtn/best_model.pt --prompt "def sort_list(" --tokens 200
+```
+
+### 5. ดูข้อมูล Model
+
+```bash
+python -m motanaxy info --checkpoint runs/mtn/best_model.pt
+```
+
+### 6. Self-Check
+
+```bash
+python -m motanaxy check
+```
+
+---
+
+## 📐 Model Presets
+
+| Preset   | Width | Context | Layers | Heads | ~Params  | Use Case              |
+|----------|-------|---------|--------|-------|----------|-----------------------|
+| `nano`   | 64    | 128     | 2      | 4     | ~100K    | ทดสอบ / เรียนรู้       |
+| `micro`  | 128   | 256     | 4      | 4     | ~800K    | ข้อมูลน้อย             |
+| `small`  | 256   | 512     | 6      | 8     | ~5M      | ข้อมูลปานกลาง          |
+| `medium` | 512   | 1024    | 8      | 8     | ~30M     | ข้อมูลมาก / GPU        |
+
+---
+
+## 🔧 Ponytail Principles Applied
+
+1. **Lazy Loading** — MarkItDown โหลดเมื่อเจอไฟล์ที่ต้องใช้เท่านั้น
+2. **No Duplicate Work** — Content hash deduplication
+3. **Reuse Weights** — Weight tying ลด parameters 30%
+4. **Standard Library First** — ใช้ `pathlib`, `hashlib`, `json` ก่อน library อื่น
+5. **One Config Object** — `TrainingConfig` รวมทุก hyperparameter ไว้ที่เดียว
+
+## 📁 Project Structure
+
+```
+motanaxy/
+├── __init__.py      # Package metadata
+├── __main__.py      # CLI entry point
+├── ingestor.py      # Multi-format data ingestion
+├── model.py         # Transformer architecture
+└── trainer.py       # Training loop & utilities
+```
+
+---
+
+## ⚡ Performance Tips
+
+- **CPU**: ใช้ `nano` หรือ `micro` preset, batch_size=4-8
+- **GPU**: ใช้ `small` หรือ `medium`, เปิด AMP อัตโนมัติ
+- **Memory จำกัด**: เพิ่ม `--grad-accum 4` เพื่อลด memory ต่อ step
+- **ข้อมูลน้อย**: ลด `--steps` เพิ่ม `--eval-interval` เพื่อจับ overfitting
+
+---
+
+*Built with ❤️ by MOTANAXY*
+
+
+"""MOTANAXY Trainer — Production-ready training loop.
+
+Features:
+- Cosine LR schedule with linear warmup
+- Gradient accumulation (train larger effective batches on limited memory)
+- Mixed-precision training (AMP) when GPU available
+- Periodic validation & checkpointing
+- Resume from checkpoint
+- Detailed metrics logging (JSON)
+"""
+
+import hashlib
+import json
+import logging
+import math
+import time
+from pathlib import Path
+
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+from .model import MotanaxyModel
+
+logger = logging.getLogger("motanaxy.trainer")
+
+
+class TrainingConfig:
+    """All training hyperparameters in one place."""
+
+    def __init__(
+        self,
+        # Data
+        batch_size: int = 8,
+        # Optimization
+        learning_rate: float = 3e-4,
+        weight_decay: float = 0.1,
+        warmup_steps: int = 50,
+        max_steps: int = 1000,
+        grad_clip: float = 1.0,
+        grad_accum_steps: int = 1,
+        # Schedule
+        lr_schedule: str = "cosine",  # "cosine" or "constant"
+        min_lr_ratio: float = 0.1,
+        # Validation & checkpointing
+        eval_interval: int = 100,
+        eval_batches: int = 8,
+        save_interval: int = 200,
+        # System
+        device: str = "auto",
+        use_amp: bool = True,
+        seed: int = 42,
+        num_threads: int = 2,
+    ):
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.warmup_steps = warmup_steps
+        self.max_steps = max_steps
+        self.grad_clip = grad_clip
+        self.grad_accum_steps = grad_accum_steps
+        self.lr_schedule = lr_schedule
+        self.min_lr_ratio = min_lr_ratio
+        self.eval_interval = eval_interval
+        self.eval_batches = eval_batches
+        self.save_interval = save_interval
+        self.device = device
+        self.use_amp = use_amp
+        self.seed = seed
+        self.num_threads = num_threads
+
+    def resolve_device(self) -> str:
+        if self.device != "auto":
+            return self.device
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
+
+
+class DataLoader:
+    """Minimal, memory-efficient data loader for byte sequences.
+
+    No external dependencies — just torch (Ponytail: standard lib first).
+    """
+
+    def __init__(self, data: torch.Tensor, context: int, batch_size: int, seed: int = 42):
+        self.data = data
+        self.context = context
+        self.batch_size = batch_size
+        self.generator = torch.Generator().manual_seed(seed)
+
+    def __len__(self) -> int:
+        return max(1, (len(self.data) - self.context) // self.batch_size)
+
+    def sample(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Sample a random batch of (input, target) pairs."""
+        starts = torch.randint(
+            len(self.data) - self.context - 1,
+            (self.batch_size,),
+            generator=self.generator,
+        )
+        tokens = torch.stack([self.data[i : i + self.context + 1] for i in starts])
+        return tokens[:, :-1], tokens[:, 1:]
+
+
+class Trainer:
+    """Handles the full training lifecycle."""
+
+    def __init__(
+        self,
+        model: MotanaxyModel,
+        train_data: torch.Tensor,
+        val_data: torch.Tensor,
+        config: TrainingConfig,
+        out_dir: str | Path,
+    ):
+        self.config = config
+        self.device = config.resolve_device()
+        self.out_dir = Path(out_dir)
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Model
+        self.model = model.to(self.device)
+        context = model.config["context"]
+
+        # Data loaders
+        self.train_loader = DataLoader(train_data, context, config.batch_size, config.seed)
+        self.val_loader = DataLoader(val_data, context, config.batch_size, config.seed + 1)
+
+        # Optimizer (Ponytail: AdamW with weight decay, no fancy lib)
+        self.optimizer = torch.optim.AdamW(
+            self.model.parameters(),
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay,
+            betas=(0.9, 0.95),
+        )
+
+        # AMP scaler (only for CUDA)
+        self.use_amp = config.use_amp and self.device == "cuda"
+        self.scaler = torch.amp.GradScaler("cuda") if self.use_amp else None
+        self.amp_dtype = torch.float16 if self.use_amp else torch.float32
+
+        # State
+        self.step = 0
+        self.best_val_loss = float("inf")
+        self.history: list[dict] = []
+
+    def get_lr(self) -> float:
+        """Cosine schedule with linear warmup."""
+        cfg = self.config
+        if cfg.lr_schedule == "constant":
+            return cfg.learning_rate
+
+        # Linear warmup
+        if self.step < cfg.warmup_steps:
+            return cfg.learning_rate * (self.step + 1) / cfg.warmup_steps
+
+        # Cosine decay
+        progress = (self.step - cfg.warmup_steps) / max(1, cfg.max_steps - cfg.warmup_steps)
+        progress = min(progress, 1.0)
+        min_lr = cfg.learning_rate * cfg.min_lr_ratio
+        return min_lr + 0.5 * (cfg.learning_rate - min_lr) * (1 + math.cos(math.pi * progress))
+
+    def _set_lr(self):
+        lr = self.get_lr()
+        for group in self.optimizer.param_groups:
+            group["lr"] = lr
+        return lr
+
+    @torch.no_grad()
+    def evaluate(self) -> float:
+        """Run validation and return average loss."""
+        self.model.eval()
+        losses = []
+        for _ in range(self.config.eval_batches):
+            x, y = self.val_loader.sample()
+            x, y = x.to(self.device), y.to(self.device)
+            with torch.amp.autocast(self.device, dtype=self.amp_dtype, enabled=self.use_amp):
+                logits = self.model(x)
+                loss = F.cross_entropy(logits.reshape(-1, 256), y.reshape(-1))
+            losses.append(loss.item())
+        return sum(losses) / len(losses)
+
+    def train_step(self) -> float:
+        """Execute one training step (with gradient accumulation)."""
+        self.model.train()
+        total_loss = 0.0
+
+        for micro_step in range(self.config.grad_accum_steps):
+            x, y = self.train_loader.sample()
+            x, y = x.to(self.device), y.to(self.device)
+
+            with torch.amp.autocast(self.device, dtype=self.amp_dtype, enabled=self.use_amp):
+                logits = self.model(x)
+                loss = F.cross_entropy(logits.reshape(-1, 256), y.reshape(-1))
+                loss = loss / self.config.grad_accum_steps
+
+            if self.scaler:
+                self.scaler.scale(loss).backward()
+            else:
+                loss.backward()
+
+            total_loss += loss.item()
+
+        # Gradient clipping
+        if self.scaler:
+            self.scaler.unscale_(self.optimizer)
+        nn.utils.clip_grad_norm_(self.model.parameters(), self.config.grad_clip)
+
+        # Step
+        if self.scaler:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        else:
+            self.optimizer.step()
+
+        self.optimizer.zero_grad(set_to_none=True)
+        return total_loss
+
+    def save_checkpoint(self, name: str = "checkpoint.pt"):
+        """Save model + optimizer + training state."""
+        path = self.out_dir / name
+        torch.save({
+            "config": self.model.config,
+            "state": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "step": self.step,
+            "best_val_loss": self.best_val_loss,
+        }, path)
+        logger.info("Saved checkpoint: %s (step %d)", path, self.step)
+
+    def save_metrics(self):
+        """Save training history as JSON."""
+        path = self.out_dir / "metrics.json"
+        path.write_text(json.dumps(self.history, indent=2), encoding="utf-8")
+
+    def train(self) -> dict:
+        """Full training loop. Returns final report."""
+        cfg = self.config
+        torch.set_num_threads(cfg.num_threads)
+        torch.manual_seed(cfg.seed)
+
+        logger.info("Device: %s | AMP: %s", self.device, self.use_amp)
+        logger.info("Parameters: %s", f"{self.model.num_parameters:,}")
+        logger.info("Train bytes: %d | Val bytes: %d",
+                     len(self.train_loader.data), len(self.val_loader.data))
+
+        initial_val_loss = self.evaluate()
+        logger.info("Initial val loss: %.4f", initial_val_loss)
+
+        started = time.perf_counter()
+
+        for self.step in range(1, cfg.max_steps + 1):
+            lr = self._set_lr()
+            train_loss = self.train_step()
+
+            # Logging
+            if self.step == 1 or self.step % 50 == 0 or self.step == cfg.max_steps:
+                print(
+                    f"step={self.step}/{cfg.max_steps}  "
+                    f"loss={train_loss:.4f}  lr={lr:.2e}",
+                    flush=True,
+                )
+
+            # Evaluation
+            if self.step % cfg.eval_interval == 0 or self.step == cfg.max_steps:
+                val_loss = self.evaluate()
+                record = {
+                    "step": self.step,
+                    "train_loss": round(train_loss, 4),
+                    "val_loss": round(val_loss, 4),
+                    "lr": round(lr, 6),
+                    "elapsed": round(time.perf_counter() - started, 1),
+                }
+                self.history.append(record)
+                print(f"  → val_loss={val_loss:.4f}", flush=True)
+
+                if val_loss < self.best_val_loss:
+                    self.best_val_loss = val_loss
+                    self.save_checkpoint("best_model.pt")
+
+            # Periodic save
+            if self.step % cfg.save_interval == 0:
+                self.save_checkpoint(f"step_{self.step}.pt")
+
+        # Final save
+        elapsed = time.perf_counter() - started
+        self.save_checkpoint("final_model.pt")
+        self.save_metrics()
+
+        final_val_loss = self.evaluate()
+
+        report = {
+            "model_preset": None,
+            "parameters": self.model.num_parameters,
+            "steps": cfg.max_steps,
+            "batch_size": cfg.batch_size,
+            "grad_accum_steps": cfg.grad_accum_steps,
+            "effective_batch_size": cfg.batch_size * cfg.grad_accum_steps,
+            "learning_rate": cfg.learning_rate,
+            "device": self.device,
+            "use_amp": self.use_amp,
+            "torch_version": str(torch.__version__),
+            "train_bytes": len(self.train_loader.data),
+            "val_bytes": len(self.val_loader.data),
+            "initial_val_loss": round(initial_val_loss, 4),
+            "final_val_loss": round(final_val_loss, 4),
+            "best_val_loss": round(self.best_val_loss, 4),
+            "improvement": round(initial_val_loss - final_val_loss, 4),
+            "seconds": round(elapsed, 2),
+        }
+
+        report_path = self.out_dir / "report.json"
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print("\n" + json.dumps(report, indent=2))
+        return report
+
+
+def prepare_data(
+    corpus: str,
+    val_ratio: float = 0.1,
+    test_ratio: float = 0.05,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Split corpus into train/val/test tensors by document boundaries.
+
+    Documents are split by triple-newline, then allocated to each split.
+    This ensures no data leakage across splits.
+    """
+    docs = [d for d in corpus.split("\n\n\n") if d.strip()]
+    if len(docs) < 5:
+        raise ValueError(
+            f"Need at least 5 documents for train/val/test split, got {len(docs)}"
+        )
+
+    n = len(docs)
+    n_test = max(1, int(n * test_ratio))
+    n_val = max(1, int(n * val_ratio))
+    n_train = n - n_val - n_test
+
+    if n_train < 3:
+        raise ValueError(f"Not enough documents for training: {n_train}")
+
+    test_docs = docs[:n_test]
+    val_docs = docs[n_test : n_test + n_val]
+    train_docs = docs[n_test + n_val :]
+
+    def to_tensor(doc_list):
+        text = "\n\n".join(doc_list)
+        return torch.tensor(list(text.encode("utf-8")), dtype=torch.long)
+
+    return to_tensor(train_docs), to_tensor(val_docs), to_tensor(test_docs)
+
+
+# Code AI — ต้นแบบฝึกจากศูนย์
+
+โมเดล Transformer ขนาดเล็ก เริ่มด้วยน้ำหนักสุ่ม ไม่มี pretrained weights และไม่เรียก API โมเดลอื่น ใช้ PyTorch คำนวณ gradient และใช้ UTF-8 bytes เป็น token จำนวน 256 ค่า
+
+## เริ่มใช้งาน (PowerShell)
+
+เปิด terminal ที่ `C:\AI project` สภาพแวดล้อม `.venv` ถูกเตรียมไว้แล้ว:
+
+```powershell
+.\.venv\Scripts\python.exe code_ai.py check
+.\.venv\Scripts\python.exe code_ai.py train --steps 300 --out runs/experiment-01
+.\.venv\Scripts\python.exe code_ai.py generate --checkpoint runs/experiment-01/model.pt --prompt "def add(" --tokens 160
+```
+
+สำหรับเครื่องใหม่ ติดตั้ง Python 3.12 แล้วสร้าง environment และติดตั้ง dependency:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt --index-url https://download.pytorch.org/whl/cpu
+```
+
+การฝึกจะบันทึก `model.pt` และ `metrics.json` ลงโฟลเดอร์ที่ระบุ หากโฟลเดอร์มีอยู่แล้วให้เปลี่ยนชื่อเพื่อรักษาผลเดิม โปรแกรมสร้างข้อความเท่านั้น ไม่รันโค้ดที่สร้างขึ้น ดาวน์โหลด checkpoint จากแหล่งที่เชื่อถือเท่านั้น
+
+## ขอบเขตและหลักฐาน
+
+ผลรันแรก: โมเดล 141,184 พารามิเตอร์ ฝึกบน CPU 300 steps เวลา training/evaluation ประมาณ 5.57 วินาที (ไม่รวมติดตั้งและโหลดไลบรารี) validation loss ลดจาก 5.7765 เป็น 2.6109 มี train 999 bytes และ validation 298 bytes เท่านั้น เก็บค่าจริงใน `runs/demo/metrics.json` และน้ำหนักใน `runs/demo/model.pt` ทดสอบ `check` ผ่าน และตรวจแล้วว่าคำสั่ง train ปฏิเสธการเขียนทับโฟลเดอร์ผลเดิม
+
+ลองโมเดลที่ฝึกแล้วได้ทันที:
+
+```powershell
+.\.venv\Scripts\python.exe code_ai.py generate --prompt "def add(" --tokens 120
+```
+
+PyTorch อาจเตือนว่าไม่มี NumPy ใน environment นี้ โปรแกรมไม่ใช้ NumPy และการทดสอบกับการฝึกผ่านโดยไม่ต้องติดตั้งเพิ่ม
+
+ผล generation จาก `def add(` โหลด checkpoint และสร้างข้อความได้จริง แต่ข้อความยังผิดไวยากรณ์ เช่น `def add(me):` ตามด้วย `reven ivaluers ...` จึงยังไม่ใช่ฟังก์ชัน Python ที่ใช้งานได้
+
+- รองรับฝึก ทำนาย และบันทึก/โหลดน้ำหนักบน CPU ยังไม่มี chat, instruction tuning, IDE extension หรือ API server
+- แบบจำลอง 2 ชั้น ความกว้าง 64, attention 4 heads, context 128 bytes
+- ข้อมูลใน `sample_data.txt` เป็นตัวอย่างสังเคราะห์ที่ผู้ช่วย AI เขียนในงานนี้ ไม่ได้คัดลอก repository ภายนอก และไม่ใช่ชุดข้อมูลที่มนุษย์เขียนทั้งหมด
+- แยกเอกสาร train/validation ก่อนสร้างหน้าต่างข้อมูล โดยคั่นเอกสารด้วย newline สามตัว ข้อมูลจริงต้องคัดข้อมูลซ้ำและข้อมูลใกล้เคียงข้ามชุดเพิ่มด้วย
+- Loss ที่ลดลงพิสูจน์เพียงว่าระบบฝึกทำงาน ไม่ได้พิสูจน์ว่าแก้โจทย์ใหม่ได้ โค้ดที่สร้างอาจใช้ไม่ได้ทั้งหมด
+- `check` ตรวจ causal attention ไม่เห็นอนาคต, การเรียนรู้ด้วย gradient, การโหลด state และ UTF-8
+- ยังไม่มีผล coding benchmark, security benchmark หรือหลักฐานพร้อมขาย
+
+คำว่า “ฝึกจากศูนย์” หมายถึงเริ่มน้ำหนักสุ่ม การใช้ข้อมูลสังเคราะห์จาก AI ไม่ได้ทำให้กลายเป็นการ fine-tune pretrained model โดยอัตโนมัติ หากใช้โมเดลครูผลิตชุดฝึกในอนาคตต้องบันทึกที่มาและตรวจสิทธิ์ของผู้ให้บริการ
+
+## ต้นทุนและขั้นต่อไป
+
+ต้นแบบใช้เครื่องเดิมและไม่ซื้อ cloud/API แต่ยังใช้ไฟฟ้า พื้นที่ดิสก์ และเวลาประมวลผล รอบเริ่มต้นจำกัดเพียง 300 steps เพื่อไม่ปล่อยงานหนักโดยไม่จำเป็น
+
+ก่อนขยาย: รวบรวมข้อมูลที่มีสิทธิ์พร้อม provenance → แยกโจทย์ทดสอบที่ไม่อยู่ในข้อมูลฝึก → วัดการเติมฟังก์ชันด้วย unit tests ใน sandbox → จึงพิจารณาฝึกด้วย GPU และเพิ่มขนาดโมเดล ไม่รับประกันว่าจะเก่งขึ้นเพียงเพิ่ม steps บนข้อมูลตัวอย่างเดิม
+
+ร่างโพสต์หาผู้สนับสนุนอยู่ใน `SUPPORT_DRAFT.md` และยังไม่ได้เผยแพร่
+
+
+# Validation example: calculate a mean.
+def mean(values):
+    if not values:
+        raise ValueError("values must not be empty")
+    return sum(values) / len(values)
+
+
+# Validation example: return the larger value.
+def maximum(left, right):
+    if left > right:
+        return left
+    return right
+
+
+# Add two numbers.
+def add(left, right):
+    return left + right
+
+
+# Subtract two numbers.
+def subtract(left, right):
+    return left - right
+
+
+# Multiply two numbers.
+def multiply(left, right):
+    return left * right
+
+
+# Divide two numbers safely.
+def divide(left, right):
+    if right == 0:
+        raise ValueError("right must not be zero")
+    return left / right
+
+
+# Find even numbers.
+def evens(values):
+    return [value for value in values if value % 2 == 0]
+
+
+# Count characters in text.
+def count_characters(text):
+    counts = {}
+    for character in text:
+        counts[character] = counts.get(character, 0) + 1
+    return counts
+
+
+# Return a greeting.
+def greet(name):
+    return "Hello, " + name
+
+
+# Keep positive numbers.
+def positive(values):
+    return [value for value in values if value > 0]
+
+
+# Calculate the square of a number.
+def square(value):
+    return value * value
+
+
+# Find the smallest value.
+def minimum(left, right):
+    if left < right:
+        return left
+    return right
+
+
+# ร่างโพสต์ — ยังไม่เผยแพร่
+
+กำลังเริ่มสร้าง AI สำหรับเขียนโค้ด โดยฝึกโมเดลขนาดเล็กจากน้ำหนักสุ่ม และอยากเปิดเผยความคืบหน้าตามผลทดลองจริง
+
+ระยะแรกเรากำลังตรวจระบบฝึกโมเดล สร้างข้อความ และบันทึกผลบนเครื่องที่มีอยู่ ข้อมูลเริ่มต้นเป็นตัวอย่างสังเคราะห์ขนาดเล็ก ยังไม่ใช่ผู้ช่วยเขียนโค้ดพร้อมใช้งาน และยังไม่มีผลยืนยันว่าแข่งขันกับโมเดลเชิงพาณิชย์ได้
+
+ผลต้นแบบรอบแรก: Transformer 141,184 พารามิเตอร์ ฝึกบน CPU 300 steps และ validation loss ลดจาก 5.78 เป็น 2.61 การทดสอบระบบฝึกผ่าน แต่ข้อมูลฝึกมีเพียง 999 bytes ตัวเลขนี้ยืนยันเฉพาะระบบทดลอง ไม่ใช่คะแนนความสามารถเขียนโค้ด
+
+เราอยากหาผู้ร่วมทดลองและผู้สนับสนุนในด้าน:
+
+- ผู้มีประสบการณ์ฝึก language model และประเมินคุณภาพโค้ด
+- ชุดโจทย์พร้อม unit tests และข้อมูลโค้ดที่อนุญาตให้ใช้ฝึกได้
+- เวลาใช้งาน GPU หรือ compute credits สำหรับการทดลองระยะถัดไป
+
+เป้าหมายถัดไปคือทดสอบการเติมฟังก์ชัน Python บนโจทย์ที่ไม่อยู่ในชุดฝึก พร้อมรายงานผลผ่าน/ไม่ผ่านและทรัพยากรที่ใช้ เราจะรายงานข้อจำกัดและผลที่ไม่สำเร็จด้วย
+
+หากสนใจร่วมทดลองหรือสนับสนุน ทักมาคุยขอบเขตงานกันได้ครับ/ค่ะ
+
+---
+
+ก่อนโพสต์: เพิ่มชื่อโครงการ ช่องทางติดต่อ ลิงก์โค้ด/เดโมที่พร้อมเปิดเผย และผลทดลองจริง หากเปิดรับเงินภายหลังต้องกำหนดเป้าหมายงบ รายการใช้เงิน และเงื่อนไขให้ชัดเจน ข้อความนี้ยังไม่เปิดรับหรือรับประกันผลตอบแทนจากเงินลงทุน

@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOTANAXY Chat Intelligence</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Markdown Parser & Highlight.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --bg-base: #09090b;
+            --bg-panel: #18181b;
+            --bg-card: rgba(39, 39, 42, 0.5);
+            --bg-user-msg: linear-gradient(135deg, #6366f1, #8b5cf6);
+            --bg-ai-msg: rgba(39, 39, 42, 0.7);
+            
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            
+            --accent-glow: rgba(99, 102, 241, 0.2);
+            --border: rgba(255, 255, 255, 0.1);
+            
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --radius-sm: 8px;
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08), transparent 25%);
+        }
+
+        /* Sidebar Sidebar */
+        .sidebar {
+            width: 320px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            z-index: 10;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 40px;
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-user-msg);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .brand-text h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #fff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-text p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .model-info {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: auto;
+        }
+
+        .model-info h3 {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .stat-val {
+            font-family: 'JetBrains Mono', monospace;
+            color: #a78bfa;
+        }
+
+        /* Settings Sliders */
+        .settings-group {
+            margin-top: 24px;
+        }
+
+        .setting-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.1);
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            margin-bottom: 16px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #8b5cf6;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Main Chat Area */
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Header */
+        .chat-header {
+            height: 72px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 32px;
+            background: rgba(9, 9, 11, 0.8);
+            backdrop-filter: blur(12px);
+            z-index: 10;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+        }
+
+        /* Messages */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 100px 32px 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            display: flex;
+            gap: 16px;
+            max-width: 85%;
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        @keyframes slideUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            margin-left: auto;
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .user .avatar {
+            background: var(--bg-user-msg);
+        }
+
+        .ai .avatar {
+            background: #27272a;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .msg-bubble {
+            padding: 16px 20px;
+            border-radius: var(--radius-md);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        .user .msg-bubble {
+            background: var(--bg-user-msg);
+            border-top-right-radius: 4px;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .ai .msg-bubble {
+            background: var(--bg-ai-msg);
+            border: 1px solid var(--border);
+            border-top-left-radius: 4px;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Markdown Styling inside AI bubble */
+        .ai .msg-bubble p { margin-bottom: 12px; }
+        .ai .msg-bubble p:last-child { margin-bottom: 0; }
+        
+        .ai .msg-bubble pre {
+            background: #0d0d10;
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin: 12px 0;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .ai .msg-bubble code:not(pre code) {
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+        }
+
+        /* Input Area */
+        .input-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 24px 32px;
+            background: linear-gradient(to top, var(--bg-base) 60%, transparent);
+            z-index: 10;
+        }
+
+        .input-box {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 12px 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            transition: var(--transition);
+        }
+
+        .input-box:focus-within {
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 10px 40px var(--accent-glow);
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-size: 1rem;
+            resize: none;
+            padding: 12px 0;
+            max-height: 200px;
+            min-height: 24px;
+            outline: none;
+            line-height: 1.5;
+        }
+
+        textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--bg-user-msg);
+            border: none;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-left: 12px;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .send-btn:disabled {
+            background: #3f3f46;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Typing Indicator */
+        .typing {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+
+        .typing span {
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing span:nth-child(1) { animation-delay: -0.32s; }
+        .typing span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">
+                <i data-lucide="cpu" color="white"></i>
+            </div>
+            <div class="brand-text">
+                <h1>MOTANAXY</h1>
+                <p>Chat Intelligence v1.0</p>
+            </div>
+        </div>
+
+        <div class="model-info">
+            <h3>Active Model</h3>
+            <div class="stat-row">
+                <span>Architecture</span>
+                <span class="stat-val">Byte-Level</span>
+            </div>
+            <div class="stat-row">
+                <span>Model run</span>
+                <span class="stat-val" id="model-run">Loading...</span>
+            </div>
+            <div class="stat-row">
+                <span>Parameters</span>
+                <span class="stat-val" id="model-parameters">Loading...</span>
+            </div>
+            <div class="stat-row">
+                <span>This run: train docs</span>
+                <span class="stat-val" id="model-docs">Loading...</span>
+            </div>
+
+            <div class="settings-group">
+                <div class="setting-header">
+                    <span>Temperature</span>
+                    <span id="temp-val" class="stat-val">0.6</span>
+                </div>
+                <input type="range" id="temperature" min="0.1" max="1.5" step="0.1" value="0.6">
+
+                <div class="setting-header">
+                    <span>Max Tokens</span>
+                    <span id="tokens-val" class="stat-val">250</span>
+                </div>
+                <input type="range" id="max-tokens" min="50" max="500" step="50" value="250">
+            </div>
+        </div>
+        
+        <div style="margin-top: auto; font-size: 0.75rem; color: var(--text-muted); text-align: center; opacity: 0.5;">
+            Powered by Ponytail Principles
+        </div>
+    </aside>
+
+    <!-- Main Chat -->
+    <main class="main-chat">
+        <header class="chat-header">
+            <h2 style="font-size: 1rem; font-weight: 500; color: var(--text-muted);">
+                <i data-lucide="terminal" style="width: 16px; margin-right: 8px; vertical-align: middle;"></i>
+                New Session
+            </h2>
+        </header>
+
+        <div class="messages-container" id="chat-box">
+            <!-- Initial Greeting -->
+            <div class="message ai">
+                <div class="avatar">
+                    <i data-lucide="bot"></i>
+                </div>
+                <div class="msg-bubble">
+                    <p>MOTANAXY เป็นโมเดลทดลองสำหรับสร้างข้อความโค้ด ผลลัพธ์ยังอาจผิดไวยากรณ์หรือใช้งานไม่ได้ กรุณาตรวจสอบก่อนนำไปใช้</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <div class="input-box">
+                <textarea 
+                    id="user-input" 
+                    placeholder="Ask for an algorithm, data structure, or Python function..." 
+                    rows="1"
+                    oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"
+                ></textarea>
+                <button class="send-btn" id="send-btn" onclick="sendMessage()">
+                    <i data-lucide="send"></i>
+                </button>
+            </div>
+            <div style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: #52525b;">
+                MOTANAXY is a tiny model. It works best with simple prompts like "def bubble_sort(" or "class Stack:".
+            </div>
+        </div>
+    </main>
+
+    <script>
+        fetch('/api/model').then(response => {
+            if (!response.ok) throw new Error('Model metadata unavailable');
+            return response.json();
+        }).then(info => {
+            document.getElementById('model-run').textContent = info.run;
+            document.getElementById('model-parameters').textContent = info.parameters.toLocaleString();
+            document.getElementById('model-docs').textContent = info.training_documents ?? 'Unknown';
+        }).catch(() => {
+            for (const id of ['model-run', 'model-parameters', 'model-docs']) {
+                document.getElementById(id).textContent = 'Unavailable';
+            }
+        });
+        // Initialize Icons
+        lucide.createIcons();
+
+        // Configure Marked.js
+        marked.setOptions({
+            highlight: function(code, lang) {
+                const language = hljs.getLanguage(lang) ? lang : 'python';
+                return hljs.highlight(code, { language }).value;
+            },
+            breaks: true
+        });
+
+        // UI Elements
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const tempSlider = document.getElementById('temperature');
+        const tempVal = document.getElementById('temp-val');
+        const tokensSlider = document.getElementById('max-tokens');
+        const tokensVal = document.getElementById('tokens-val');
+
+        // Settings Listeners
+        tempSlider.addEventListener('input', (e) => tempVal.textContent = e.target.value);
+        tokensSlider.addEventListener('input', (e) => tokensVal.textContent = e.target.value);
+
+        // Enter to send
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function appendMessage(role, content, isMarkdown = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+            
+            const icon = role === 'user' ? 'user' : 'bot';
+            
+            let bubbleContent = '';
+            if (isMarkdown) {
+                bubbleContent = marked.parse(content);
+            } else {
+                // Escape HTML for plain text
+                const temp = document.createElement('div');
+                temp.textContent = content;
+                bubbleContent = `<p>${temp.innerHTML.replace(/\n/g, '<br>')}</p>`;
+            }
+
+            msgDiv.innerHTML = `
+                <div class="avatar">
+                    <i data-lucide="${icon}"></i>
+                </div>
+                <div class="msg-bubble">
+                    ${bubbleContent}
+                </div>
+            `;
+            
+            chatBox.appendChild(msgDiv);
+            lucide.createIcons({ root: msgDiv });
+            
+            // Scroll to bottom
+            setTimeout(() => {
+                chatBox.scrollTo({
+                    top: chatBox.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }, 50);
+            
+            return msgDiv;
+        }
+
+        function appendTypingIndicator() {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ai typing-indicator`;
+            msgDiv.innerHTML = `
+                <div class="avatar">
+                    <i data-lucide="bot"></i>
+                </div>
+                <div class="msg-bubble">
+                    <div class="typing">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            chatBox.appendChild(msgDiv);
+            lucide.createIcons({ root: msgDiv });
+            chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
+            return msgDiv;
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // UI Updates
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            sendBtn.disabled = true;
+
+            // Add user message
+            appendMessage('user', text, false);
+
+            // Add typing indicator
+            const typingDiv = appendTypingIndicator();
+
+            try {
+                // Call FastAPI backend
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        temperature: parseFloat(tempSlider.value),
+                        max_tokens: parseInt(tokensSlider.value),
+                        top_k: 40
+                    })
+                });
+
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const data = await response.json();
+                
+                // Remove typing indicator
+                typingDiv.remove();
+                
+                // Append AI response
+                appendMessage('ai', data.response, true);
+
+            } catch (error) {
+                console.error('Error:', error);
+                typingDiv.remove();
+                appendMessage('ai', `*Error processing request:* ${error.message}`, true);
+            } finally {
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+    </script>
+</body>
+</html>

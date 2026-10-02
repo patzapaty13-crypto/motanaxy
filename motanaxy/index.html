@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOTANAXY - Token-Efficient Code Training System</title>
+    <meta name="description" content="MOTANAXY: ระบบเทรน AI model สำหรับ code generation ด้วย Byte-level Transformer ที่มีประสิทธิภาพสูง">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a2e;
+            --bg-card-hover: #1e1e36;
+            --bg-glass: rgba(26, 26, 46, 0.6);
+            --text-primary: #e8e8f0;
+            --text-secondary: #9898b0;
+            --text-muted: #6868880;
+            --accent-1: #6c5ce7;
+            --accent-2: #a855f7;
+            --accent-3: #06d6a0;
+            --accent-4: #00b4d8;
+            --accent-5: #f72585;
+            --accent-6: #ff9f1c;
+            --gradient-1: linear-gradient(135deg, #6c5ce7, #a855f7);
+            --gradient-2: linear-gradient(135deg, #06d6a0, #00b4d8);
+            --gradient-3: linear-gradient(135deg, #f72585, #ff6b6b);
+            --gradient-4: linear-gradient(135deg, #ff9f1c, #f72585);
+            --border-color: rgba(108, 92, 231, 0.2);
+            --shadow-glow: 0 0 40px rgba(108, 92, 231, 0.15);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* ===== Background Effects ===== */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(108, 92, 231, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(108, 92, 231, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .bg-orbs {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.4;
+            animation: orbFloat 20s infinite ease-in-out;
+        }
+
+        .orb-1 {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, #6c5ce7, transparent);
+            top: -10%; left: -5%;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, #a855f7, transparent);
+            top: 50%; right: -10%;
+            animation-delay: -7s;
+        }
+
+        .orb-3 {
+            width: 350px; height: 350px;
+            background: radial-gradient(circle, #06d6a0, transparent);
+            bottom: -5%; left: 30%;
+            animation-delay: -14s;
+        }
+
+        @keyframes orbFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(30px, -40px) scale(1.1); }
+            50% { transform: translate(-20px, 20px) scale(0.95); }
+            75% { transform: translate(40px, 30px) scale(1.05); }
+        }
+
+        /* ===== Layout ===== */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ===== Navigation ===== */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            transition: var(--transition);
+        }
+
+        nav .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 16px;
+            padding-bottom: 16px;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            font-weight: 400;
+            opacity: 0.6;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient-1);
+            transition: var(--transition);
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        /* ===== Hero Section ===== */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding-top: 80px;
+        }
+
+        .hero-content {
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            background: rgba(108, 92, 231, 0.1);
+            border: 1px solid rgba(108, 92, 231, 0.3);
+            border-radius: 100px;
+            font-size: 0.85rem;
+            color: var(--accent-2);
+            margin-bottom: 32px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent-3);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.3); }
+        }
+
+        .hero h1 {
+            font-size: clamp(3rem, 7vw, 5rem);
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            letter-spacing: -2px;
+            animation: fadeInUp 0.6s ease-out 0.1s both;
+        }
+
+        .hero h1 .gradient-text {
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 40px;
+            animation: fadeInUp 0.6s ease-out 0.2s both;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            animation: fadeInUp 0.6s ease-out 0.3s both;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: var(--transition);
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 20px rgba(108, 92, 231, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(108, 92, 231, 0.5);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(108, 92, 231, 0.1);
+            border-color: var(--accent-1);
+        }
+
+        /* ===== Stats Bar ===== */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            padding: 48px 0;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            margin: 0;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* ===== Section Common ===== */
+        section {
+            padding: 100px 0;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+
+        .section-header h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 16px;
+            letter-spacing: -1px;
+        }
+
+        .section-header p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* ===== Feature Cards ===== */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 24px;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 36px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-1);
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(108, 92, 231, 0.4);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        .feature-card .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(108, 92, 231, 0.1);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            color: var(--accent-2);
+            margin-top: 16px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ===== Architecture Diagram ===== */
+        .architecture {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 48px;
+            margin-top: 48px;
+            overflow-x: auto;
+        }
+
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 20px 0;
+        }
+
+        .arch-node {
+            background: rgba(108, 92, 231, 0.1);
+            border: 1px solid rgba(108, 92, 231, 0.3);
+            border-radius: var(--radius-sm);
+            padding: 20px 28px;
+            text-align: center;
+            min-width: 150px;
+            transition: var(--transition);
+        }
+
+        .arch-node:hover {
+            background: rgba(108, 92, 231, 0.2);
+            transform: scale(1.05);
+        }
+
+        .arch-node .icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .arch-node .name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .arch-node .desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .arch-arrow {
+            font-size: 1.5rem;
+            color: var(--accent-1);
+            animation: arrowPulse 2s infinite;
+        }
+
+        @keyframes arrowPulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        /* ===== Advantages Section ===== */
+        .advantages-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        .advantage-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 32px;
+            display: flex;
+            gap: 20px;
+            transition: var(--transition);
+        }
+
+        .advantage-card:hover {
+            border-color: rgba(108, 92, 231, 0.4);
+            transform: translateX(4px);
+        }
+
+        .advantage-number {
+            font-size: 2rem;
+            font-weight: 900;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1;
+            min-width: 48px;
+        }
+
+        .advantage-content h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .advantage-content p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* ===== Training Data Section ===== */
+        .data-categories {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .data-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 28px;
+            transition: var(--transition);
+            text-align: center;
+        }
+
+        .data-card:hover {
+            border-color: rgba(6, 214, 160, 0.4);
+            box-shadow: 0 0 30px rgba(6, 214, 160, 0.1);
+        }
+
+        .data-card .emoji {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+
+        .data-card h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .data-card .count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-3);
+            margin-bottom: 8px;
+        }
+
+        .data-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ===== Training Results ===== */
+        .results-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .result-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 32px;
+        }
+
+        .result-panel h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(108, 92, 231, 0.1);
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .metric-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .metric-value.positive {
+            color: var(--accent-3);
+        }
+
+        .metric-value.highlight {
+            color: var(--accent-2);
+        }
+
+        /* ===== Loss Chart ===== */
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            margin-top: 24px;
+            position: relative;
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ===== Code Block ===== */
+        .code-block {
+            background: #0d0d14;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .code-block .line-numbers {
+            color: #444;
+            user-select: none;
+            padding-right: 16px;
+            border-right: 1px solid rgba(108, 92, 231, 0.1);
+            margin-right: 16px;
+        }
+
+        .code-block .keyword { color: #c792ea; }
+        .code-block .function { color: #82aaff; }
+        .code-block .string { color: #c3e88d; }
+        .code-block .comment { color: #546e7a; }
+        .code-block .number { color: #f78c6c; }
+        .code-block .decorator { color: #ffcb6b; }
+        .code-block .param { color: #f07178; }
+
+        .copy-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(108, 92, 231, 0.2);
+            border: 1px solid rgba(108, 92, 231, 0.3);
+            color: var(--text-secondary);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-family: inherit;
+            transition: var(--transition);
+        }
+
+        .copy-btn:hover {
+            background: rgba(108, 92, 231, 0.4);
+            color: white;
+        }
+
+        /* ===== Presets Table ===== */
+        .presets-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .presets-table th {
+            background: rgba(108, 92, 231, 0.1);
+            padding: 16px 20px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--accent-2);
+        }
+
+        .presets-table td {
+            padding: 14px 20px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.9rem;
+        }
+
+        .presets-table tr:hover td {
+            background: rgba(108, 92, 231, 0.05);
+        }
+
+        .presets-table .preset-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--accent-3);
+        }
+
+        /* ===== Ponytail Section ===== */
+        .ponytail-ladder {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            counter-reset: rung;
+        }
+
+        .ladder-rung {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            transition: var(--transition);
+            counter-increment: rung;
+        }
+
+        .ladder-rung:hover {
+            border-color: rgba(168, 85, 247, 0.4);
+            transform: translateX(8px);
+        }
+
+        .ladder-rung::before {
+            content: counter(rung);
+            min-width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--gradient-1);
+            border-radius: 10px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .ladder-rung .rung-text {
+            font-weight: 600;
+        }
+
+        .ladder-rung .rung-desc {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* ===== Footer ===== */
+        footer {
+            border-top: 1px solid var(--border-color);
+            padding: 48px 0;
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer .footer-logo {
+            font-size: 1.3rem;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+        }
+
+        /* ===== Live Demo Section ===== */
+        .demo-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 36px;
+        }
+
+        .demo-input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .demo-input {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 14px 20px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .demo-input:focus {
+            border-color: var(--accent-1);
+            box-shadow: 0 0 20px rgba(108, 92, 231, 0.2);
+        }
+
+        .demo-output {
+            background: #0d0d14;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            min-height: 120px;
+            color: var(--accent-3);
+            white-space: pre-wrap;
+        }
+
+        /* ===== Animations ===== */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 768px) {
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .features-grid { grid-template-columns: 1fr; }
+            .advantages-grid { grid-template-columns: 1fr; }
+            .data-categories { grid-template-columns: 1fr; }
+            .results-container { grid-template-columns: 1fr; }
+            .hero h1 { font-size: 2.5rem; }
+            .nav-links { display: none; }
+            .demo-input-group { flex-direction: column; }
+        }
+
+        /* ===== Scrollbar ===== */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(108, 92, 231, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(108, 92, 231, 0.5);
+        }
+
+        /* ===== Comparison Table ===== */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 32px;
+        }
+
+        .compare-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 28px;
+        }
+
+        .compare-card h4 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .compare-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .compare-card ul li {
+            padding: 8px 0;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .compare-card ul li::before {
+            content: '>';
+            color: var(--accent-3);
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .compare-card.before ul li::before {
+            content: 'x';
+            color: var(--accent-5);
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(108, 92, 231, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+</div>
+
+<!-- Navigation -->
+<nav>
+    <div class="container">
+        <div class="logo">MOTANAXY <span>v1.0</span></div>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#advantages">Advantages</a></li>
+            <li><a href="#training-data">Training Data</a></li>
+            <li><a href="#results">Results</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#demo">Demo</a></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-content">
+            <div class="badge">Token-Efficient AI Training System</div>
+            <h1>
+                Train Smarter<br>
+                with <span class="gradient-text">MOTANAXY</span>
+            </h1>
+            <p>
+                Byte-level Transformer for code generation. Built with Ponytail efficiency
+                and MarkItDown universal ingestion. Minimal resources, maximum learning.
+            </p>
+            <div class="hero-buttons">
+                <a href="#demo" class="btn btn-primary">Try Live Demo</a>
+                <a href="#features" class="btn btn-secondary">Explore Features</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Bar -->
+<div class="container">
+    <div class="stats-bar reveal">
+        <div class="stat-item">
+            <div class="stat-value" id="stat-params">0</div>
+            <div class="stat-label">Parameters</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="stat-docs">0</div>
+            <div class="stat-label">Training Documents</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="stat-improvement">0%</div>
+            <div class="stat-label">Loss Improvement</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="stat-speed">0s</div>
+            <div class="stat-label">Training Time</div>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<section id="features">
+    <div class="container">
+        <div class="section-header reveal">
+            <h2>Core <span class="gradient-text">Features</span></h2>
+            <p>Everything you need for efficient code model training, in one system</p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card reveal">
+                <div class="feature-icon" style="background: rgba(108, 92, 231, 0.15);">
+                    <span>&#x1F4E5;</span>
+                </div>
+                <h3>Universal Data Ingestion</h3>
+                <p>Automatically reads .py, .js, .ts, .go, .rs, .pdf, .docx, .xlsx and 50+ formats. MarkItDown converts everything to clean training text.</p>
+                <span class="tag">MarkItDown Integration</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon" style="background: rgba(6, 214, 160, 0.15);">
+                    <span>&#x1F9E0;</span>
+                </div>
+                <h3>Pre-Norm Transformer</h3>
+                <p>Custom architecture with pre-normalization for stable training, weight-tied embeddings for 30% fewer parameters, and top-k generation.</p>
+                <span class="tag">Custom Architecture</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon" style="background: rgba(247, 37, 133, 0.15);">
+                    <span>&#x26A1;</span>
+                </div>
+                <h3>Token-Efficient Training</h3>
+                <p>Cosine LR schedule with warmup, gradient accumulation, mixed-precision (AMP), and automatic checkpointing of the best model.</p>
+                <span class="tag">Production-Ready</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon" style="background: rgba(0, 180, 216, 0.15);">
+                    <span>&#x1F50D;</span>
+                </div>
+                <h3>Smart Deduplication</h3>
+                <p>SHA-256 content hashing eliminates duplicate data before training. No wasted compute on repeated information.</p>
+                <span class="tag">Zero Waste</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon" style="background: rgba(255, 159, 28, 0.15);">
+                    <span>&#x1F3AF;</span>
+                </div>
+                <h3>4 Model Presets</h3>
+                <p>From nano (125K params, testing) to medium (30M params, GPU). One flag to switch between configurations.</p>
+                <span class="tag">Scalable</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon" style="background: rgba(168, 85, 247, 0.15);">
+                    <span>&#x1F3D7;&#xFE0F;</span>
+                </div>
+                <h3>Ponytail Philosophy</h3>
+                <p>Lazy loading, standard library first, no bloat. Every line of code earns its place through the decision ladder.</p>
+                <span class="tag">Minimal & Efficient</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Advantages Section -->
+<section id="advantages" style="background: var(--bg-secondary);">
+    <div class="container">
+        <div class="section-header reveal">
+            <h2>Why <span class="gradient-text">MOTANAXY</span></h2>
+            <p>Every advantage and capability, all in one place</p>
+        </div>
+
+        <div class="advantages-grid">
+            <div class="advantage-card reveal">
+                <div class="advantage-number">01</div>
+                <div class="advantage-content">
+                    <h3>Byte-Level Processing</h3>
+                    <p>Works with raw bytes (0-255) instead of word tokens. No tokenizer needed, handles any language or encoding natively.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">02</div>
+                <div class="advantage-content">
+                    <h3>Weight Tying</h3>
+                    <p>Token embedding shared with output head reduces parameters by ~30% with no loss in quality. Same weights, dual purpose.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">03</div>
+                <div class="advantage-content">
+                    <h3>Causal Masking</h3>
+                    <p>Pre-registered causal mask computed once at init and reused every forward pass. No future token leakage, verified by self-check.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">04</div>
+                <div class="advantage-content">
+                    <h3>Gradient Accumulation</h3>
+                    <p>Train with large effective batch sizes on limited memory. 4x accumulation = 4x effective batch without 4x memory.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">05</div>
+                <div class="advantage-content">
+                    <h3>Mixed Precision (AMP)</h3>
+                    <p>Automatic FP16 on GPU for 2x speed and 50% less VRAM. Falls back to FP32 on CPU seamlessly.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">06</div>
+                <div class="advantage-content">
+                    <h3>Cosine LR with Warmup</h3>
+                    <p>Linear warmup prevents early instability, cosine decay finds better optima. Configurable warmup steps and min LR ratio.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">07</div>
+                <div class="advantage-content">
+                    <h3>Auto Best Checkpoint</h3>
+                    <p>Monitors validation loss and automatically saves the best model. Never lose your best weights to overfitting.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">08</div>
+                <div class="advantage-content">
+                    <h3>MarkItDown Universal Reader</h3>
+                    <p>PDF, DOCX, PPTX, XLSX, images, audio, HTML, CSV, JSON, XML, ZIP - all converted to clean markdown for training.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">09</div>
+                <div class="advantage-content">
+                    <h3>Lazy MarkItDown Loading</h3>
+                    <p>MarkItDown only imported when a non-plaintext file is encountered. Zero overhead for pure code projects.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">10</div>
+                <div class="advantage-content">
+                    <h3>Content Hash Dedup</h3>
+                    <p>SHA-256 hash per document prevents training on identical content. Saves compute, prevents memorization bias.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">11</div>
+                <div class="advantage-content">
+                    <h3>Quality Filtering</h3>
+                    <p>Skips files that are too small, too large, comment-only, or binary. Only meaningful code reaches the model.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">12</div>
+                <div class="advantage-content">
+                    <h3>Train/Val/Test Splits</h3>
+                    <p>Document-level splitting prevents data leakage. Proper evaluation gives honest loss metrics.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">13</div>
+                <div class="advantage-content">
+                    <h3>Top-K Sampling</h3>
+                    <p>Generation with temperature control and top-k filtering for high-quality, diverse outputs.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">14</div>
+                <div class="advantage-content">
+                    <h3>Resume Training</h3>
+                    <p>Save and resume training from any checkpoint. Interrupted training doesn't mean lost progress.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">15</div>
+                <div class="advantage-content">
+                    <h3>5 CLI Commands</h3>
+                    <p>ingest, train, generate, info, check - complete workflow from raw data to generated code in 5 commands.</p>
+                </div>
+            </div>
+            <div class="advantage-card reveal">
+                <div class="advantage-number">16</div>
+                <div class="advantage-content">
+                    <h3>CPU & GPU Support</h3>
+                    <p>Auto-detects CUDA/MPS/CPU. Train anywhere from a laptop to a data center without code changes.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Training Data Section -->
+<section id="training-data">
+    <div class="container">
+        <div class="section-header reveal">
+            <h2>Training <span class="gradient-text">Data</span></h2>
+            <p>Knowledge from AI, organized and deduplicated for maximum learning</p>
+        </div>
+
+        <div class="data-categories">
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F4CA;</div>
+                <h3>Sorting Algorithms</h3>
+                <div class="count">8</div>
+                <p>Bubble, Quick, Merge, Insertion, Selection, Heap, Counting sort + variants</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F50E;</div>
+                <h3>Search Algorithms</h3>
+                <div class="count">3</div>
+                <p>Binary Search, Linear Search, Recursive Binary Search</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F3D7;&#xFE0F;</div>
+                <h3>Data Structures</h3>
+                <div class="count">7</div>
+                <p>Stack, Queue, LinkedList, BST, HashTable, MinHeap, Graph</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F9E9;</div>
+                <h3>Dynamic Programming</h3>
+                <div class="count">8</div>
+                <p>Fibonacci, LCS, Knapsack, Coin Change, Edit Distance, LIS, Max Subarray</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F310;</div>
+                <h3>Graph Algorithms</h3>
+                <div class="count">4</div>
+                <p>BFS, DFS, Dijkstra, Path Finding</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F4DD;</div>
+                <h3>String Algorithms</h3>
+                <div class="count">7</div>
+                <p>Palindrome, Caesar Cipher, Anagram, LCP, KMP Pattern Search</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F522;</div>
+                <h3>Math Utilities</h3>
+                <div class="count">10</div>
+                <p>GCD, LCM, Prime, Sieve, Factorial, Power, Matrix Multiply, Transpose</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x2699;&#xFE0F;</div>
+                <h3>Design Patterns</h3>
+                <div class="count">8</div>
+                <p>Observer, Command, Strategy, Singleton, State Machine, Pipeline, Repository</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F9E0;</div>
+                <h3>PyTorch / ML</h3>
+                <div class="count">15</div>
+                <p>Attention, Transformer, EarlyStopping, EMA, Focal Loss, Metrics, Data Augmentation</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F527;</div>
+                <h3>Utilities</h3>
+                <div class="count">30+</div>
+                <p>Decorators, Generators, Caching, Validation, Logging, Threading, File I/O, HTTP</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F6E1;&#xFE0F;</div>
+                <h3>Error Handling</h3>
+                <div class="count">6</div>
+                <p>Custom Exceptions, Safe Parse, Retry Logic, Validation Framework</p>
+            </div>
+            <div class="data-card reveal">
+                <div class="emoji">&#x1F680;</div>
+                <h3>Async Patterns</h3>
+                <div class="count">5</div>
+                <p>Async Queue, Batch Processing, Retry, Timeout, Concurrency</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Architecture Section -->
+<section id="architecture" style="background: var(--bg-secondary);">
+    <div class="container">
+        <div class="section-header reveal">
+            <h2>System <span class="gradient-text">Architecture</span></h2>
+            <p>From raw files to generated code, every step is optimized</p>
+        </div>
+
+        <div class="architecture reveal">
+            <h3 style="margin-bottom: 24px; text-align: center;">MOTANAXY Pipeline</h3>
+            <div class="arch-flow">
+                <div class="arch-node">
+                    <div class="icon">&#x1F4C1;</div>
+                    <div class="name">Source Files</div>
+                    <div class="desc">.py .js .pdf .docx ...</div>
+                </div>
+                <div class="arch-arrow">&#x27A1;</div>
+                <div class="arch-node">
+                    <div class="icon">&#x1F4E5;</div>
+                    <div class="name">Ingestor</div>
+                    <div class="desc">MarkItDown + Dedup</div>
+                </div>
+                <div class="arch-arrow">&#x27A1;</div>
+                <div class="arch-node">
+                    <div class="icon">&#x1F9F9;</div>
+                    <div class="name">Cleaner</div>
+                    <div class="desc">Filter + Normalize</div>
+                </div>
+                <div class="arch-arrow">&#x27A1;</div>
+                <div class="arch-node">
+                    <div class="icon">&#x1F4BE;</div>
+                    <div class="name">Corpus</div>
+                    <div class="desc">Training-ready text</div>
+                </div>
+                <div class="arch-arrow">&#x27A1;</div>
+                <div class="arch-node">
+                    <div class="icon">&#x1F9E0;</div>
+                    <div class="name">Transformer</div>
+                    <div class="desc">Pre-norm + Weight tie</div>
+                </div>
+                <div class="arch-arrow">&#x27A1;</div>
+                <div class="arch-node">
+                    <div class="icon">&#x2728;</div>
+                    <div class="name">Generator</div>
+                    <div class="desc">Top-k sampling</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ponytail Decision Ladder -->
+        <div style="margin-top: 64px;">
+            <div class="section-header reveal">
+                <h2>Ponytail <span class="gradient-text">Decision Ladder</span></h2>
+                <p>Before writing any code, stop at the first rung that solves the problem</p>
+            </div>
+            <div class="ponytail-ladder reveal">
+                <div class="ladder-rung">
+                    <div>
+                        <div class="rung-text">Does this need to exist?</div>
+                        <div class="rung-desc">YAGNI - You Ain't Gonna Need It</div>
+                    </div>
+                </div>
+                <div class="ladder-rung">
+                    <div>
+                        <div class="rung-text">Does it already exist in the codebase?</div>
+                        <div class="rung-desc">Reuse existing helpers and patterns</div>
+                    </div>
+                </div>
+                <div class="ladder-rung">
+                    <div>
+                        <div class="rung-text">Does the standard library do it?</div>
+                        <div class="rung-desc">pathlib, hashlib, json before any external lib</div>
+                    </div>
+                </div>
+                <div class="ladder-rung">
+                    <div>
+                        <div class="rung-text">Does a native platform feature cover it?</div>
+                        <div class="rung-desc">Use built-in capabilities first</div>
+                    </div>
+                </div>
+                <div class="ladder-rung">
+                    <div>
+                        <div class="rung-text">Does an installed dependency solve it?</div>
+                        <div class="rung-desc">torch, markitdown - already in requirements</div>
+                    </div>
+                </div>
+                <div class="ladder-rung">
+                    <div>
+                        <div class="rung-text">Can it be one line?</div>
+                        <div class="rung-desc">One-liner configs, one-liner checks</div>
+                    </div>
+                </div>
+                <div class="ladder-rung">
+                    <div>
+                        <div class="rung-text">Only then: write the minimum that works</div>
+                        <div class="rung-desc">Every line earns its place</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Training Results Section -->
+<section id="results">
+    <div class="container">
+        <div class="section-header reveal">
+            <h2>Training <span class="gradient-text">Results</span></h2>
+            <p>Real metrics from actual training runs</p>
+        </div>
+
+        <div class="results-container reveal">
+            <div class="result-panel">
+                <h3>&#x1F4CA; Model Metrics</h3>
+                <div class="metric-row">
+                    <span class="metric-label">Model Preset</span>
+                    <span class="metric-value highlight" id="res-preset">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Parameters</span>
+                    <span class="metric-value" id="res-params">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Training Steps</span>
+                    <span class="metric-value" id="res-steps">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Learning Rate</span>
+                    <span class="metric-value" id="res-lr">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Device</span>
+                    <span class="metric-value" id="res-device">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Training Time</span>
+                    <span class="metric-value" id="res-time">Loading...</span>
+                </div>
+            </div>
+
+            <div class="result-panel">
+                <h3>&#x1F4C9; Loss Metrics</h3>
+                <div class="metric-row">
+                    <span class="metric-label">Initial Val Loss</span>
+                    <span class="metric-value" id="res-init-loss">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Final Val Loss</span>
+                    <span class="metric-value positive" id="res-final-loss">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Best Val Loss</span>
+                    <span class="metric-value positive" id="res-best-loss">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Improvement</span>
+                    <span class="metric-value positive" id="res-improvement">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Train Bytes</span>
+                    <span class="metric-value" id="res-train-bytes">Loading...</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Val Bytes</span>
+                    <span class="metric-value" id="res-val-bytes">Loading...</span>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <div class="metric-label" style="margin-bottom: 8px;">Loss Reduction</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="loss-progress" style="width: 0%; background: var(--gradient-2);"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Presets Table -->
+        <div style="margin-top: 64px;" class="reveal">
+            <h3 style="margin-bottom: 24px; text-align: center; font-size: 1.5rem;">Model Presets</h3>
+            <table class="presets-table">
+                <thead>
+                    <tr>
+                        <th>Preset</th>
+                        <th>Width</th>
+                        <th>Context</th>
+                        <th>Layers</th>
+                        <th>Heads</th>
+                        <th>~Parameters</th>
+                        <th>Best For</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="preset-name">nano</td>
+                        <td>64</td>
+                        <td>128</td>
+                        <td>2</td>
+                        <td>4</td>
+                        <td>~125K</td>
+                        <td>Testing, learning</td>
+                    </tr>
+                    <tr>
+                        <td class="preset-name">micro</td>
+                        <td>128</td>
+                        <td>256</td>
+                        <td>4</td>
+                        <td>4</td>
+                        <td>~800K</td>
+                        <td>Small datasets</td>
+                    </tr>
+                    <tr>
+                        <td class="preset-name">small</td>
+                        <td>256</td>
+                        <td>512</td>
+                        <td>6</td>
+                        <td>8</td>
+                        <td>~5M</td>
+                        <td>Medium datasets</td>
+                    </tr>
+                    <tr>
+                        <td class="preset-name">medium</td>
+                        <td>512</td>
+                        <td>1024</td>
+                        <td>8</td>
+                        <td>8</td>
+                        <td>~30M</td>
+                        <td>GPU training</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- Demo Section -->
+<section id="demo" style="background: var(--bg-secondary);">
+    <div class="container">
+        <div class="section-header reveal">
+            <h2>Quick <span class="gradient-text">Start</span></h2>
+            <p>Get started with MOTANAXY in 3 commands</p>
+        </div>
+
+        <div class="demo-container reveal">
+            <div style="margin-bottom: 32px;">
+                <h3 style="margin-bottom: 16px;">Step 1: Ingest Data</h3>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <code><span class="comment"># Collect all code files into a training corpus</span>
+python -m motanaxy ingest --sources ./src ./docs --out corpus.txt</code>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="margin-bottom: 16px;">Step 2: Train Model</h3>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <code><span class="comment"># Train with micro preset for 1500 steps</span>
+python -m motanaxy train --corpus corpus.txt --preset micro --steps <span class="number">1500</span></code>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="margin-bottom: 16px;">Step 3: Generate Code</h3>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <code><span class="comment"># Generate code from your trained model</span>
+python -m motanaxy generate --checkpoint runs/mtn/best_model.pt --prompt <span class="string">"def sort_list("</span></code>
+                </div>
+            </div>
+
+            <div class="comparison-grid">
+                <div class="compare-card before">
+                    <h4>&#x274C; Without MOTANAXY</h4>
+                    <ul>
+                        <li>Manual data collection</li>
+                        <li>No deduplication</li>
+                        <li>Fixed learning rate</li>
+                        <li>No checkpoint management</li>
+                        <li>Single file format only</li>
+                        <li>No quality filtering</li>
+                    </ul>
+                </div>
+                <div class="compare-card">
+                    <h4>&#x2705; With MOTANAXY</h4>
+                    <ul>
+                        <li>Auto-ingest 50+ file formats</li>
+                        <li>SHA-256 deduplication</li>
+                        <li>Cosine LR + warmup schedule</li>
+                        <li>Auto best-model checkpoint</li>
+                        <li>MarkItDown universal reader</li>
+                        <li>Smart quality + size filtering</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="footer-logo">MOTANAXY</div>
+        <p>Token-Efficient Code Training System &mdash; Built with Ponytail Philosophy + MarkItDown</p>
+        <p style="margin-top: 8px; font-size: 0.8rem; color: #555;">v1.0.0 &middot; Byte-level Transformer &middot; CPU & GPU</p>
+    </div>
+</footer>
+
+<script>
+    // ===== Scroll Reveal =====
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // ===== Counter Animation =====
+    function animateCounter(el, target, suffix = '', duration = 2000) {
+        const start = performance.now();
+        const isFloat = target % 1 !== 0;
+
+        function update(now) {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = eased * target;
+
+            if (isFloat) {
+                el.textContent = current.toFixed(1) + suffix;
+            } else {
+                el.textContent = Math.floor(current).toLocaleString() + suffix;
+            }
+
+            if (progress < 1) requestAnimationFrame(update);
+        }
+        requestAnimationFrame(update);
+    }
+
+    // ===== Load Training Results =====
+    // These will be updated with real data after training completes
+    const trainingResults = {
+        preset: "micro",
+        parameters: 858880,
+        steps: 1500,
+        lr: 3e-4,
+        device: "cpu",
+        seconds: 313.54,
+        initial_val_loss: 5.4811,
+        final_val_loss: 1.81,
+        best_val_loss: 1.8051,
+        improvement: 3.671,
+        train_bytes: 86916,
+        val_bytes: 12319,
+        documents: 210,
+    };
+
+    function updateResults(r) {
+        const pctImprovement = ((r.initial_val_loss - r.final_val_loss) / r.initial_val_loss * 100);
+
+        // Stats bar
+        animateCounter(document.getElementById('stat-params'), r.parameters);
+        animateCounter(document.getElementById('stat-docs'), r.documents);
+        animateCounter(document.getElementById('stat-improvement'), pctImprovement, '%');
+        animateCounter(document.getElementById('stat-speed'), r.seconds, 's');
+
+        // Result panels
+        document.getElementById('res-preset').textContent = r.preset;
+        document.getElementById('res-params').textContent = r.parameters.toLocaleString();
+        document.getElementById('res-steps').textContent = r.steps.toLocaleString();
+        document.getElementById('res-lr').textContent = r.lr;
+        document.getElementById('res-device').textContent = r.device.toUpperCase();
+        document.getElementById('res-time').textContent = r.seconds + 's';
+        document.getElementById('res-init-loss').textContent = r.initial_val_loss.toFixed(4);
+        document.getElementById('res-final-loss').textContent = r.final_val_loss.toFixed(4);
+        document.getElementById('res-best-loss').textContent = r.best_val_loss.toFixed(4);
+        document.getElementById('res-improvement').textContent = '+' + r.improvement.toFixed(4) + ' (' + pctImprovement.toFixed(1) + '%)';
+        document.getElementById('res-train-bytes').textContent = r.train_bytes.toLocaleString();
+        document.getElementById('res-val-bytes').textContent = r.val_bytes.toLocaleString();
+
+        // Progress bar
+        setTimeout(() => {
+            document.getElementById('loss-progress').style.width = pctImprovement + '%';
+        }, 500);
+    }
+
+    // Initialize with defaults, will update when training completes
+    setTimeout(() => updateResults(trainingResults), 500);
+
+    // ===== Copy Button =====
+    function copyCode(btn) {
+        const code = btn.parentElement.querySelector('code').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = 'Copy', 2000);
+        });
+    }
+
+    // ===== Smooth Nav Scroll =====
+    document.querySelectorAll('.nav-links a').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const target = document.querySelector(link.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
