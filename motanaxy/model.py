@@ -342,12 +342,13 @@ class MotanaxyModel(nn.Module):
         self.eval()
         ids = list(prompt_bytes)
         ctx = self.config["context"]
+        dev = self.token_emb.weight.device
 
         if self.version == 1:
             # v1: recompute full context each step (original behavior)
             for _ in range(max_tokens):
                 window = ids[-ctx:]
-                x = torch.tensor([window])
+                x = torch.tensor([window], device=dev)
                 logits = self(x)[0, -1] / temperature
                 if top_k > 0:
                     top_vals, _ = logits.topk(min(top_k, logits.size(-1)))
@@ -358,7 +359,7 @@ class MotanaxyModel(nn.Module):
             # v2: KV-cache generation
             # First pass: encode full prompt
             window = ids[-ctx:]
-            x = torch.tensor([window])
+            x = torch.tensor([window], device=dev)
             tok = self.token_emb(x)
             tok = self.emb_dropout(tok)
 
@@ -386,7 +387,7 @@ class MotanaxyModel(nn.Module):
                         for k, v in caches
                     ]
 
-                x = torch.tensor([[ids[-1]]])
+                x = torch.tensor([[ids[-1]]], device=dev)
                 tok = self.token_emb(x)
 
                 for i, block in enumerate(self.blocks):
