@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import VoiceControls from './VoiceControls';
 
 async function api(path, method = 'GET', body) {
   const response = await fetch(`/api/${path}`, { method, credentials: 'same-origin',
@@ -46,6 +47,7 @@ export default function CloudApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [voiceEpoch, setVoiceEpoch] = useState(0);
   const bottom = useRef(null);
   const input = useRef(null);
   const inFlight = useRef(false);
@@ -73,6 +75,7 @@ export default function CloudApp() {
 
   async function openSession(value) {
     if (busy) return;
+    setVoiceEpoch(previous => previous + 1);
     try {
       const history = await api(`sessions/${value}`);
       setSession(value); setMessages(history.map(row => ({ ...row, text: row.content, trace: JSON.parse(row.trace || '[]') })));
@@ -117,7 +120,7 @@ export default function CloudApp() {
 
   return <div className="app-shell cloud-shell">
     <aside className="sidebar"><a className="brand" href="/"><span className="brand-icon">◈</span><span><strong>MOTANAXY<span className="brand-period">.</span></strong><small>PERSONAL CLOUD AGENT</small></span></a>
-      <button className="new-session" disabled={busy} onClick={() => { setSession(null); setMessages([]); setPanel('chat'); setPrompt(''); setError(''); setNotice(''); }}>＋ New conversation</button>
+      <button className="new-session" disabled={busy} onClick={() => { setVoiceEpoch(previous => previous + 1); setSession(null); setMessages([]); setPanel('chat'); setPrompt(''); setError(''); setNotice(''); }}>＋ New conversation</button>
       <nav className="cloud-nav" aria-label="เมนูหลัก">{[['chat','แชต'],['memory','ความจำ'],['files','ไฟล์ทดลอง'],['learning','คิวเรียนรู้']].map(([name, label]) => <button key={name} aria-current={panel === name ? 'page' : undefined} onClick={() => setPanel(name)}>{label}{name === 'files' && <span>{files.length}</span>}{name === 'learning' && <span>{samples.length}</span>}</button>)}</nav>
       <section className="model-card"><div className="section-label">CLOUD MODEL <span className={`status-dot ${model ? 'online' : ''}`} /></div><h2>{model?.run ?? 'Connecting…'}</h2><p>{model?.provider ?? 'Cloudflare Workers AI'}</p><dl className="model-stats"><div><dt>ประมวลผล</dt><dd>Cloud GPU</dd></div><div><dt>Model calls วันนี้</dt><dd>{model?.calls_today ?? '—'} / {model?.call_limit ?? 40}</dd></div><div><dt>Local model</dt><dd>Not loaded</dd></div></dl><span className="experiment-tag">PRIVATE EXPERIMENT</span></section>
       <div className="history-list"><div className="section-label">CONVERSATIONS</div>{sessions.slice(0, 15).map(item => <div className="history-item" key={item.id}><button disabled={busy} onClick={() => openSession(item.id)} title={item.title}>{item.title}</button><button disabled={busy} aria-label={`ลบบทสนทนา ${item.title}`} onClick={async () => {
@@ -140,7 +143,7 @@ export default function CloudApp() {
         <div className="message-list">{messages.map((message, index) => <article className={`message ${message.role}`} key={message.id || index}><div className="avatar">{message.role === 'user' ? 'Y' : '◈'}</div><div className="message-content"><div className="message-label">{message.role === 'user' ? 'YOU' : 'MOTANAXY · QWEN'}{message.elapsed != null && <span>{message.elapsed.toFixed(1)}s · cloud inference</span>}</div><RichText value={message.text} />{message.trace?.length > 0 && <details className="tool-trace"><summary>การใช้เครื่องมือ {message.trace.length} ครั้ง</summary>{message.trace.map((step, n) => <div key={n}><strong>{step.tool}</strong><pre>{JSON.stringify(step.result, null, 2)}</pre></div>)}</details>}{message.role === 'assistant' && settings.collect && message.id && <button className="plain-button" onClick={() => approve(message.id)}>คัดคำตอบนี้เข้าคิวข้อมูลฝึก</button>}</div></article>)}</div>
         {busy && <div className="generating" role="status"><span className="pulse" />กำลังประมวลผลบนคลาวด์ {agent ? '· สูงสุด 4 รอบต่อคำขอ' : ''}</div>}<div ref={bottom} />
       </div><div className="composer-area"><div className="cloud-settings"><label><input type="checkbox" checked={agent} disabled={busy} onChange={e => setAgent(e.target.checked)} /> Agent: อนุญาตแก้ไฟล์ทดลอง</label><label>คำตอบ<select aria-label="ความยาวคำตอบ" value={tokens} onChange={e => setTokens(Number(e.target.value))}><option value={384}>สั้น</option><option value={768}>ปกติ</option><option value={1536}>ยาว</option></select></label><label>Temp <input aria-label="Temperature" type="number" step="0.1" min="0.1" max="1.2" value={temperature} onChange={e => setTemperature(Number(e.target.value))} /></label></div>
-        <form className="composer" onSubmit={send}><label htmlFor="cloud-prompt" className="sr-only">พิมพ์คำถาม</label><textarea ref={input} id="cloud-prompt" maxLength={4000} rows={2} value={prompt} placeholder="บอกสิ่งที่อยากทำ หรือถามต่อจากบทสนทนาเดิม…" onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) send(e); }} /><div className="composer-bottom"><span>{agent ? 'Agent · Private cloud files' : 'Chat · Conversation memory'}</span><button type="submit" className="send-button" disabled={busy || !model || !prompt.trim()} aria-label="ส่งข้อความ">↑</button></div></form><p className="composer-note">ประวัติอยู่บน Cloudflare · ไม่ใช้แชตฝึกน้ำหนักอัตโนมัติ · ถึงโควตาจะหยุด</p></div></>}
+        <VoiceControls key={voiceEpoch} setPrompt={setPrompt} answer={messages.filter(message => message.role === 'assistant').at(-1)?.text || ''} disabled={busy} maxLength={4000} /><form className="composer" onSubmit={send}><label htmlFor="cloud-prompt" className="sr-only">พิมพ์คำถาม</label><textarea ref={input} id="cloud-prompt" maxLength={4000} rows={2} value={prompt} placeholder="บอกสิ่งที่อยากทำ หรือถามต่อจากบทสนทนาเดิม…" onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) send(e); }} /><div className="composer-bottom"><span>{agent ? 'Agent · Private cloud files' : 'Chat · Conversation memory'}</span><button type="submit" className="send-button" disabled={busy || !model || !prompt.trim()} aria-label="ส่งข้อความ">↑</button></div></form><p className="composer-note">ประวัติอยู่บน Cloudflare · ไม่ใช้แชตฝึกน้ำหนักอัตโนมัติ · ถึงโควตาจะหยุด</p></div></>}
 
       {panel === 'memory' && <section className="cloud-panel"><h1>ความจำของคุณ</h1><p>บอกภาษา สไตล์ หรือข้อกำหนดโปรเจกต์ ข้อมูลนี้ถูกส่งให้โมเดลทุกครั้ง แก้ไขหรือลบได้ ไม่ใช่การเปลี่ยนน้ำหนักโมเดล</p><label htmlFor="memory">สิ่งที่อยากให้จำ</label><textarea id="memory" rows={10} maxLength={3000} value={settings.memory} placeholder="ตอบภาษาไทยแบบกระชับ ใช้ Next.js และเน้นอธิบายสำหรับมือใหม่…" onChange={e => setSettings({...settings,memory:e.target.value})} /><div className="panel-actions"><button className="primary-button" onClick={saveSettings}>บันทึกความจำ</button><button className="plain-button" onClick={async () => { try { await api('settings','PUT',{...settings,memory:''}); setSettings({...settings,memory:''}); setNotice('ลบความจำแล้ว'); } catch(cause) {fail(cause);} }}>ลบความจำทั้งหมด</button></div><p className="muted">พื้นที่นี้สำหรับเจ้าของระบบหนึ่งคน ไม่ใช่ระบบหลายบัญชี อย่าเก็บรหัสผ่านหรือ API key</p></section>}
 

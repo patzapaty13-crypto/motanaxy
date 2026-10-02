@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import CloudApp from './CloudApp';
+import VoiceControls from './VoiceControls';
 
 function Icon({ name, size = 20 }) {
   const paths = {
@@ -50,6 +51,7 @@ function LocalHome() {
   const [tokens, setTokens] = useState(250);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [voiceEpoch, setVoiceEpoch] = useState(0);
   const input = useRef(null);
   const bottom = useRef(null);
   const inFlight = useRef(false);
@@ -107,7 +109,7 @@ function LocalHome() {
   return <div className="app-shell">
     <aside className="sidebar">
       <a className="brand" href="/" aria-label="MOTANAXY home"><span className="brand-icon"><Icon name="chip" size={27} /></span><span><strong>MOTANAXY<span className="brand-period">.</span></strong><small>LOCAL CODE LAB</small></span></a>
-      <button className="new-session" type="button" disabled={busy} onClick={() => { setMessages([]); setPrompt(''); setError(''); input.current?.focus(); }}><Icon name="plus" size={18} />New session<span>↗</span></button>
+      <button className="new-session" type="button" disabled={busy} onClick={() => { setVoiceEpoch(previous => previous + 1); setMessages([]); setPrompt(''); setError(''); input.current?.focus(); }}><Icon name="plus" size={18} />New session<span>↗</span></button>
 
       <section className="model-card" aria-label="Active model">
         <div className="section-label">ACTIVE MODEL <span className={`status-dot ${online ? 'online' : ''}`} /></div>
@@ -142,7 +144,7 @@ function LocalHome() {
       </div>
 
       <div className="composer-area">{error && <p className="error-message" role="alert">{error}</p>}
-        <form className="composer" onSubmit={submit}><label htmlFor="prompt" className="sr-only">คำถามหรือโค้ดที่ต้องการให้โมเดลต่อ</label><textarea ref={input} id="prompt" value={prompt} maxLength={4096} rows={2} placeholder="พิมพ์โจทย์ หรือเริ่มด้วย def add(a, b):" onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} /><div className="composer-bottom"><span><Icon name="code" size={14} />Python <span className="composer-separator">·</span> {online ? 'Local model' : 'Waiting for backend'}</span><button className="send-button" type="submit" disabled={busy || !prompt.trim() || !online} aria-label="ส่งให้โมเดลสร้างโค้ด"><Icon name="arrow" size={20} /></button></div></form>
+        <VoiceControls key={voiceEpoch} setPrompt={setPrompt} answer={messages.filter(message => message.role === 'assistant').at(-1)?.text || ''} disabled={busy} maxLength={4096} /><form className="composer" onSubmit={submit}><label htmlFor="prompt" className="sr-only">คำถามหรือโค้ดที่ต้องการให้โมเดลต่อ</label><textarea ref={input} id="prompt" value={prompt} maxLength={4096} rows={2} placeholder="พิมพ์โจทย์ หรือเริ่มด้วย def add(a, b):" onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} /><div className="composer-bottom"><span><Icon name="code" size={14} />Python <span className="composer-separator">·</span> {online ? 'Local model' : 'Waiting for backend'}</span><button className="send-button" type="submit" disabled={busy || !prompt.trim() || !online} aria-label="ส่งให้โมเดลสร้างโค้ด"><Icon name="arrow" size={20} /></button></div></form>
         <p className="composer-note"><span>Enter เพื่อส่ง · Shift + Enter ขึ้นบรรทัดใหม่</span><span>แต่ละคำขอประมวลผลแยกกัน</span></p>
       </div>
     </main>
